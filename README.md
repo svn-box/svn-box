@@ -1,8 +1,20 @@
-# svnbox
+<div align="center">
+  <img src="resources/icon.png" width="128" height="128" alt="svnbox app icon" />
+  <h1>svnbox</h1>
+  <p>
+    <a href="README.md"><strong>English</strong></a> · <a href="README.zh-CN.md">简体中文</a>
+  </p>
+  <p>A home for your SVN repositories and working copies on macOS.</p>
+  <p>
+    <a href="#screenshots">Screenshots</a> ·
+    <a href="https://github.com/svn-box/svn-box/issues">Report an issue</a>
+  </p>
+  <p><sub>v0.1.0 · macOS 13+ · Apple Silicon (arm64)</sub></p>
+</div>
 
-A Subversion client for macOS. Organize repositories and working copies, review changes, and commit selected paths from one desktop workspace.
+svnbox (仓盒) brings your Subversion projects into one desktop workspace. Switch between working copies, review changes, commit selected paths, and explore history without losing your place.
 
-The interface is currently available in Simplified Chinese.
+The app interface is currently available in **Simplified Chinese**.
 
 ## Features
 
@@ -16,6 +28,50 @@ The interface is currently available in Simplified Chinese.
 - **Operation logs** — inspect progress and command output, cancel running tasks, filter or copy logs, and clear completed records.
 - **Desktop controls** — keyboard navigation, context menus, Finder and Terminal actions, and six appearance themes.
 - **Bundled SVN** — use the included Subversion client or choose a local executable in Settings.
+
+## Screenshots
+
+Captured from the running app at **1920 × 1200** using fictional projects in isolated local SVN repositories. All project names, changes, commit messages, and accounts shown are demo data. The screenshots show the current Chinese interface.
+
+**Your workspace** — Keep multiple working copies together, browse a compact file tree, and review changes with a side-by-side diff and file inspector.
+
+![svnbox desktop workspace with grouped working copies, a file tree, and a side-by-side diff](resources/screenshots/workspace.png)
+
+<details>
+<summary>History and commit differences</summary>
+
+Browse revisions by date, expand changed paths, and open a commit's diff directly in the timeline. Shown with the Gray theme.
+
+![svnbox history timeline with dated commits and an inline commit diff in the Gray theme](resources/screenshots/history.png)
+
+</details>
+
+<details>
+<summary>Review a selective commit</summary>
+
+Choose the paths to include, inspect their differences, and edit a saved commit draft before reviewing the final scope.
+
+![svnbox commit dialog with selected paths, a commit message draft, and a diff preview](resources/screenshots/commit.png)
+
+</details>
+
+<details>
+<summary>Repository bookmarks and browsing</summary>
+
+Keep remote paths alongside their local working copies. Browse a repository and choose a directory to check out. The loopback address shown belongs to the local demo server.
+
+![svnbox repository browser with saved remote paths and checkout controls](resources/screenshots/repositories.png)
+
+</details>
+
+<details>
+<summary>Make the workspace yours</summary>
+
+Choose White, Gray, Deep Blue, Teal, Purple, or Orange in Settings. Appearance changes apply immediately.
+
+![svnbox appearance settings with six workspace themes](resources/screenshots/appearance.png)
+
+</details>
 
 ## Usage
 
