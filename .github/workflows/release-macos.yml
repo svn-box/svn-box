@@ -1,0 +1,142 @@
+name: Release macOS arm64
+
+on:
+    push:
+        tags: ['v*']
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: release-macos-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    build:
+        runs-on: xcode-27
+        timeout-minutes: 90
+        outputs:
+            version: ${{ steps.prepare.outputs.version }}
+            directory: ${{ steps.prepare.outputs.directory }}
+            artifact_name: macos-${{ steps.prepare.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+              with:
+                  persist-credentials: false
+                  fetch-depth: 0
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+              with:
+                  node-version: '26'
+                  cache: npm
+            - run: npm ci
+            - name: Validate version, notes, tag and release availability
+              id: prepare
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RELEASE_PREVIEW: ${{ github.event_name == 'workflow_dispatch' }}
+              run: node scripts/github-release.ts prepare
+            - name: Install native build and test tools
+              run: brew install subversion scons pkgconf
+            - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+              with:
+                  path: |
+                      .cache/svn-runtime
+                      resources/svn/darwin-arm64
+                  key: svn-native-${{ runner.os }}-${{ runner.arch }}-xcode27-${{ hashFiles('scripts/build-svn-*.mjs', 'resources/native-patches/**') }}
+            - name: Check formatting and regression tests
+              run: |
+                  npm run format:check
+                  npm test
+                  git diff --exit-code -- package.json package-lock.json src/renderer/src/styles/tokens.css
+            - name: Build and verify preview installers
+              if: github.event_name == 'workflow_dispatch'
+              run: npm run release:mac:preview
+            - name: Import signing certificate into a temporary keychain
+              if: github.event_name == 'push'
+              env:
+                  BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+                  P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  umask 077
+                  : "${BUILD_CERTIFICATE_BASE64:?Missing BUILD_CERTIFICATE_BASE64}"
+                  : "${P12_PASSWORD:?Missing P12_PASSWORD}"
+                  certificate_path="$RUNNER_TEMP/svnbox-signing.p12"
+                  keychain_path="$RUNNER_TEMP/svnbox-signing.keychain-db"
+                  keychain_password="$(openssl rand -base64 24)"
+                  printf '::add-mask::%s\n' "$keychain_password"
+                  printf '%s' "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
+                  security create-keychain -p "$keychain_password" "$keychain_path"
+                  security set-keychain-settings -lut 21600 "$keychain_path"
+                  security unlock-keychain -p "$keychain_password" "$keychain_path"
+                  security import "$certificate_path" -P "$P12_PASSWORD" -t cert -f pkcs12 \
+                    -k "$keychain_path" -T /usr/bin/codesign -T /usr/bin/security
+                  security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+                    -k "$keychain_password" "$keychain_path" > /dev/null
+                  security list-keychains -d user -s "$keychain_path" "$HOME/Library/Keychains/login.keychain-db"
+                  printf 'CSC_KEYCHAIN=%s\n' "$keychain_path" >> "$GITHUB_ENV"
+            - name: Build, sign and notarize installers
+              if: github.event_name == 'push'
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+              run: npm run release:mac
+            - name: Remove signing material
+              if: always() && github.event_name == 'push'
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  keychain_path="$RUNNER_TEMP/svnbox-signing.keychain-db"
+                  if [ -f "$keychain_path" ]; then
+                    security delete-keychain "$keychain_path"
+                  fi
+                  rm -f "$RUNNER_TEMP/svnbox-signing.p12"
+            - name: Verify the extracted final application and mounted DMG
+              if: github.event_name == 'push'
+              env:
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: npm run release:verify
+            - name: Retain UI diagnostics on failure
+              if: failure()
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: macos-failure-${{ github.run_id }}-${{ github.run_attempt }}
+                  path: test-results/
+                  if-no-files-found: ignore
+                  retention-days: 7
+            - name: Transfer verified distribution files
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: macos-${{ steps.prepare.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  path: ${{ steps.prepare.outputs.directory }}/
+                  if-no-files-found: error
+                  retention-days: 7
+
+    publish:
+        if: github.event_name == 'push'
+        needs: build
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+              with:
+                  persist-credentials: false
+                  fetch-depth: 0
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+              with:
+                  node-version: '26'
+                  cache: npm
+            - run: npm ci --ignore-scripts
+            - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: ${{ needs.build.outputs.artifact_name }}
+                  path: ${{ needs.build.outputs.directory }}/
+            - name: Recheck hashes, upload a draft, verify assets and publish
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: node scripts/github-release.ts publish

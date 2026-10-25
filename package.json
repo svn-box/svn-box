@@ -15,11 +15,16 @@
 		"test": "vitest run",
 		"test:e2e": "npm run svn:build && npm run build && node scripts/e2e.mjs",
 		"format": "prettier --write src tests scripts electron.vite.config.ts",
+		"format:check": "prettier --check src tests scripts electron.vite.config.ts package.json tsconfig.json README.md release-notes .github",
 		"package:mac": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dmg zip --arm64",
 		"package:dir": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dir --arm64",
 		"svn:build": "node scripts/build-svn-runtime.mjs",
 		"icons:build": "node scripts/build-icons.mjs",
-		"themes:build": "node scripts/build-themes.mjs"
+		"themes:build": "node scripts/build-themes.mjs",
+		"release:check": "node scripts/github-release.ts check",
+		"release:mac": "node scripts/release-mac.ts",
+		"release:mac:preview": "node scripts/release-mac.ts --unsigned && node scripts/verify-installers.ts --unsigned",
+		"release:verify": "node scripts/verify-installers.ts"
 	},
 	"dependencies": {
 		"@radix-ui/react-context-menu": "2.4.1",
