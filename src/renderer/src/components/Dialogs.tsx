@@ -3,8 +3,8 @@ import { svnQueries } from '../queries/runtime';
 import { workspaceStore } from '../state/workspace';
 import type { WorkspaceCatalog } from '../state/workspace-store';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronRight, Download, Folder, KeyRound, LoaderCircle, Plus, RefreshCw, Server, Settings2, ShieldCheck, Square, Star } from 'lucide-react';
-import type { AppState, Detection, Review, RpcMap } from '../../../shared/types';
+import { ArrowLeft, ChevronRight, Download, Folder, KeyRound, LoaderCircle, Plus, RefreshCw, Server, Square, Star } from 'lucide-react';
+import type { AppState, Review, RpcMap } from '../../../shared/types';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { VirtualList } from './VirtualList';
@@ -52,85 +52,7 @@ export function Modal({
 	);
 }
 
-export function SettingsDialog({ state, onState, onClose }: { state: WorkspaceCatalog; onState: (state: AppState) => void; onClose: () => void }) {
-	const [path, setPath] = useState(state.settings.svnPath);
-	const [tool, setTool] = useState(state.settings.mergeTool);
-	const [detection, setDetection] = useState<Detection>();
-	const [busy, setBusy] = useState(false);
-	useEffect(() => {
-		void api
-			.call('detect', {})
-			.then(setDetection)
-			.catch((error) => notifyError(error));
-	}, []);
-	async function save() {
-		setBusy(true);
-		try {
-			onState(await api.call('settings', { svnPath: path, mergeTool: tool }));
-			setDetection(await api.call('detect', { path }));
-			toast.success('设置已保存');
-		} catch (error) {
-			notifyError(error);
-		} finally {
-			setBusy(false);
-		}
-	}
-
-	return (
-		<Modal title="设置" description="本地 SVN 工具与界面外观" onClose={onClose}>
-			<div className="settings-scroll">
-				<div className="section-heading">
-					<Settings2 size={15} />
-					SVN 命令行工具
-				</div>
-				<label>
-					可执行文件路径
-					<input value={path} onChange={(event) => setPath(event.target.value)} placeholder="留空使用仓盒内置 SVN" />
-				</label>
-				<p className="hint">默认使用内置 SVN，包含服务器先发握手的连接兼容处理；也可指定自己的 SVN 工具。</p>
-				<div className={`detection ${detection?.ok ? 'good' : 'error-text'}`}>
-					<ShieldCheck size={15} />
-					{detection ? (detection.ok ? `Subversion ${detection.version} · ${detection.path}` : detection.error) : '正在检测…'}
-				</div>
-				<label>
-					外部合并工具
-					<input value={tool} onChange={(event) => setTool(event.target.value)} placeholder="/Applications/Kaleidoscope.app" />
-				</label>
-				<p className="hint">通过外部工具打开冲突文件；保存后回到仓盒检查，再明确标记为已解决。</p>
-				<div className="section-heading mt-5">外观</div>
-				<div className="theme-options">
-					{(['system', 'light', 'dark'] as const).map((theme) => (
-						<button
-							key={theme}
-							className={state.settings.theme === theme ? 'chosen' : ''}
-							onClick={() => {
-								void api
-									.call('settings', { theme })
-									.then(onState)
-									.catch((error) => notifyError(error));
-							}}
-						>
-							<span className={`theme-preview ${theme}`}>
-								<i />
-								<i />
-								<i />
-							</span>
-							{{ system: '跟随系统', light: '浅色', dark: '深色' }[theme]}
-						</button>
-					))}
-				</div>
-			</div>
-			<div className="dialog-footer">
-				<Button variant="outline" onClick={onClose}>
-					关闭
-				</Button>
-				<Button disabled={busy} onClick={() => void save()}>
-					{busy && <LoaderCircle className="spin" />}保存并检测
-				</Button>
-			</div>
-		</Modal>
-	);
-}
+export { SettingsDialog } from './SettingsDialog';
 
 function RemoteSurface({ children, title, description }: React.ComponentProps<typeof Modal>) {
 	return (
@@ -214,10 +136,7 @@ export function RemoteDialog({
 		connection.current = controller;
 		try {
 			const context = await api.call('authentication', { url, repositoryId: repositoryId || undefined });
-			const choice = await requestAuthentication(context, controller.signal);
-			if (!controller.signal.aborted) {
-				await browse(url, repositoryId, choice === 'existing');
-			}
+			await requestAuthentication(context, controller.signal, 'edit');
 		} catch (error) {
 			notifyError(error);
 		}

@@ -1,5 +1,5 @@
 import { QueryClient, infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
-import type { LogEntry, Operation, Snapshot } from '../../../shared/types';
+import { isOperationActive, type LogEntry, type Operation, type Snapshot } from '../../../shared/types';
 import type { ClientCall } from '../lib/api-types';
 
 export const queryKeys = {
@@ -8,23 +8,48 @@ export const queryKeys = {
 	operations: ['operations'] as const,
 };
 
+type OperationVersion = Pick<Operation, 'state' | 'sequence'>;
+
+function operationRegresses(next: OperationVersion, old: OperationVersion): boolean {
+	return (!isOperationActive(old) && isOperationActive(next)) || (old.state === 'running' && next.state === 'waiting');
+}
+
+function newerOperation(next: Operation, old?: Operation): Operation {
+	if (!old) {
+		return next;
+	}
+	if (operationRegresses(next, old)) {
+		return old;
+	}
+	if (old.sequence !== undefined || next.sequence !== undefined) {
+		return (next.sequence ?? -1) > (old.sequence ?? -1) ? next : old;
+	}
+	return (next.endedAt && !old.endedAt) ||
+		(next.endedAt ?? next.startedAt) > (old.endedAt ?? old.startedAt) ||
+		(!old.endedAt && next.logs.join('').length >= old.logs.join('').length)
+		? next
+		: old;
+}
+
 export function mergeOperations(incoming: Operation[], existing: Operation[] = []): Operation[] {
 	const entries = new Map(existing.map((operation) => [operation.id, operation]));
 	for (const next of incoming) {
-		const old = entries.get(next.id);
-		if (
-			!old ||
-			(next.endedAt && !old.endedAt) ||
-			(next.endedAt ?? next.startedAt) > (old.endedAt ?? old.startedAt) ||
-			(!old.endedAt && next.logs.join('').length >= old.logs.join('').length)
-		) {
-			entries.set(next.id, next);
-		}
+		entries.set(next.id, newerOperation(next, entries.get(next.id)));
 	}
-	return [...entries.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 100);
+	const ordered = [...entries.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+	const completed = new Set(
+		ordered
+			.filter((operation) => !isOperationActive(operation))
+			.slice(0, 100)
+			.map((operation) => operation.id),
+	);
+	return ordered.filter((operation) => isOperationActive(operation) || completed.has(operation.id));
 }
 
 export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapshot) => void = () => {}, onScanError: (wcId: string, error: unknown) => void = () => {}) {
+	const clearedOperations = new Set<string>();
+	const operationVersions = new Map<string, OperationVersion>();
+	const retained = (operations: Operation[] = []) => operations.filter((operation) => !clearedOperations.has(operation.id));
 	const client = new QueryClient({
 		defaultOptions: {
 			queries: {
@@ -112,7 +137,7 @@ export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapsh
 	const operationOptions = () =>
 		queryOptions({
 			queryKey: queryKeys.operations,
-			queryFn: async () => mergeOperations(await call('operations', undefined), client.getQueryData(queryKeys.operations)),
+			queryFn: async () => mergeOperations(retained(await call('operations', undefined)), retained(client.getQueryData(queryKeys.operations))),
 			structuralSharing: false,
 		});
 	return {
@@ -124,6 +149,33 @@ export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapsh
 		historyOptions,
 		listOptions,
 		operationOptions,
+		acceptOperation(operation: Operation): Operation | undefined {
+			if (clearedOperations.has(operation.id)) {
+				return;
+			}
+			const existing = retained(client.getQueryData(queryKeys.operations));
+			const previous = existing.find((entry) => entry.id === operation.id);
+			const known = operationVersions.get(operation.id);
+			if (known && (operationRegresses(operation, known) || (known.sequence !== undefined && (operation.sequence ?? -1) <= known.sequence))) {
+				return;
+			}
+			if (previous && (operationRegresses(operation, previous) || (previous.sequence !== undefined && (operation.sequence ?? -1) < previous.sequence))) {
+				return;
+			}
+			operationVersions.set(operation.id, { state: operation.state, sequence: operation.sequence });
+			client.setQueryData(queryKeys.operations, mergeOperations([operation], existing));
+			// Queries may see a completion first; event handling and visible retention are independent.
+			return operation;
+		},
+		async clearOperations(ids: string[]) {
+			await client.cancelQueries({ queryKey: queryKeys.operations, exact: true });
+			const result = await call('clearOperations', { ids });
+			for (const id of result.removedIds) {
+				clearedOperations.add(id);
+			}
+			client.setQueryData<Operation[]>(queryKeys.operations, (previous) => mergeOperations(retained(result.operations), retained(previous)));
+			return result;
+		},
 		async refreshStatus(wcId: string, remote = false) {
 			const options = statusOptions(wcId, remote);
 			await client.cancelQueries({ queryKey: options.queryKey, exact: true });

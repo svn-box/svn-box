@@ -6,6 +6,10 @@ import { App } from './App';
 import { Toaster } from './components/ui/sonner';
 import { AuthenticationHost } from './components/AuthenticationHost';
 import './styles.css';
+import './styles/macos.css';
+import './styles/settings.css';
+import './styles/authentication.css';
+import './styles/operations.css';
 
 class ErrorBoundary extends React.Component<React.PropsWithChildren, { error: string }> {
 	state = { error: '' };

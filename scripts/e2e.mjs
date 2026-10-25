@@ -213,7 +213,8 @@ try {
 	await desktop.page.waitForFunction(() => [...document.querySelectorAll('.diff-line code')].some((el) => el.textContent?.includes('svnbox')));
 	await call(desktop.page, 'settings', { theme: 'dark' });
 	await desktop.instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('svnbox:navigate', 'settings'));
-	await desktop.page.getByRole('button', { name: '深色', exact: true }).click();
+	await desktop.page.getByRole('button', { name: '灰色', exact: true }).click();
+	await desktop.page.getByRole('tab', { name: '工具', exact: true }).click();
 	await desktop.page.getByLabel('可执行文件路径', { exact: true }).fill('/tmp/svnbox-tool-that-does-not-exist');
 	await desktop.page.getByRole('button', { name: '保存并检测', exact: true }).click();
 	await desktop.page.locator('[data-sonner-toast][data-type="error"]').waitFor();

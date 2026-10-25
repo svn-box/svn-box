@@ -1,3 +1,4 @@
+import { getTheme } from '../../shared/themes';
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
 	Archive,
@@ -29,7 +30,7 @@ import {
 	Trash2,
 	Upload,
 } from 'lucide-react';
-import { isChanged, isConflict, type Action, type AppState, type Review, type WorkspaceSession } from '../../shared/types';
+import { isChanged, isConflict, type Action, type AppState, type Operation, type Review, type WorkspaceSession } from '../../shared/types';
 import { Button } from './components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './components/ui/dropdown-menu';
 import { api, errorText, Modal, RemoteDialog, ReviewDialog, SettingsDialog } from './components/Dialogs';
@@ -40,10 +41,12 @@ import { notifyError } from './lib/feedback';
 import { requestAuthentication } from './lib/authentication';
 import { toast } from 'sonner';
 import { useQueries, isCancelledError } from '@tanstack/react-query';
-import { svnQueries, subscribeWorkspaceRuntime } from './queries/runtime';
+import { acceptOperation, svnQueries, subscribeWorkspaceRuntime } from './queries/runtime';
+import { queryKeys } from './queries/svn-queries';
 import { useStatus, useOperationSummary } from './queries/hooks';
 import { workspaceStore, useWorkspaceStore } from './state/workspace';
 import { WorkingCopyView } from './components/WorkingCopyView';
+import { WorkspaceViewTabs, WorkingCopyMenu, WorkspaceStatus } from './components/WorkspaceToolbar';
 import { OperationsDialog } from './components/OperationsDialog';
 import { resizePanel as resize } from './lib/panel-resize';
 
@@ -75,11 +78,14 @@ export function App() {
 	const [detected, setDetected] = useState('检测中');
 	const navigateRef = useRef<(action: string) => void>(() => {});
 	const wc = activeRepositoryId ? undefined : state?.workingCopies.find((copy) => copy.id === activeId);
+	const wcRepository = state?.repositories.find((repository) => repository.id === wc?.repositoryId);
 	const activeRepository = state?.repositories.find((repo) => repo.id === activeRepositoryId);
 	const snapshot = useStatus(activeId).data;
 	const statusQueries = useQueries({ queries: (state?.workingCopies ?? []).map((copy) => svnQueries.statusOptions(copy.id)) });
 	const loading = Object.fromEntries((state?.workingCopies ?? []).map((copy, index) => [copy.id, statusQueries[index].isFetching]));
-	const busyWrite = operations.some((operation) => operation.wcId === activeId && ['waiting', 'running'].includes(operation.state));
+	const preparingUpdate = useWorkspaceStore((store) => !!(activeId && store.updateIntents[activeId]?.preparing));
+	const updating = operations.some((operation) => operation.wcId === activeId && operation.label === '更新工作副本' && ['waiting', 'running'].includes(operation.state));
+	const busyWrite = preparingUpdate || operations.some((operation) => operation.wcId === activeId && ['waiting', 'running'].includes(operation.state));
 	const changed = snapshot?.files.filter(isChanged) ?? [];
 	const commitFiles = changed.filter((file) => !isConflict(file) && !file.external && !['missing', 'obstructed', 'incomplete'].includes(file.item));
 	const acceptState = useCallback((next: AppState) => workspaceStore.getState().accept(next), []);
@@ -133,16 +139,14 @@ export function App() {
 		if (!state) {
 			return;
 		}
-		const media = matchMedia('(prefers-color-scheme: dark)');
-		const apply = () => document.documentElement.classList.toggle('dark', state.settings.theme === 'dark' || (state.settings.theme === 'system' && media.matches));
-		apply();
-		media.addEventListener('change', apply);
-		return () => media.removeEventListener('change', apply);
+		const theme = getTheme(state.settings.theme);
+		document.documentElement.dataset.theme = theme.id;
+		document.documentElement.classList.toggle('dark', theme.scheme === 'dark');
 	}, [state?.settings.theme]);
 
 	async function authenticate(url: string, repositoryId?: string) {
 		try {
-			await requestAuthentication(await api.call('authentication', { url, repositoryId }));
+			await requestAuthentication(await api.call('authentication', { url, repositoryId }), undefined, 'edit');
 		} catch (error) {
 			showError(error);
 		}
@@ -233,14 +237,28 @@ export function App() {
 	}
 
 	async function updateCopy() {
-		if (!wc) {
+		if (!wc || reviewing) {
 			return;
 		}
+		const wcId = wc.id;
+		const queued = svnQueries.client.getQueryData<Operation[]>(queryKeys.operations) ?? [];
+		if (queued.some((operation) => operation.wcId === wcId && ['waiting', 'running'].includes(operation.state))) {
+			return;
+		}
+		const toastId = `update-${crypto.randomUUID()}`;
+		// Guard before awaiting: another click or shortcut can precede the next render.
+		if (!workspaceStore.getState().beginUpdate(wcId, toastId)) {
+			return;
+		}
+		toast.loading('准备更新工作副本…', { id: toastId, description: `${wc.name} · 检查工作副本与仓库连接` });
 		try {
-			const next = await api.call('review', { wcId: wc.id, action: 'update', paths: [] });
-			await api.call('execute', { reviewId: next.id });
+			const next = await api.call('review', { wcId, action: 'update', paths: [] });
+			const operation = await api.call('execute', { reviewId: next.id });
+			acceptOperation(operation);
 		} catch (error) {
-			showError(error);
+			notifyError(error, toastId);
+		} finally {
+			workspaceStore.getState().finishUpdatePreparation(wcId, toastId);
 		}
 	}
 
@@ -449,14 +467,14 @@ export function App() {
 				{wc ? (
 					<div className="project-header">
 						<div className="project-heading">
-							<FolderGit2 size={19} />
 							<div>
 								<h1>{wc.name}</h1>
 								<div className="project-path" title={`${wc.path}\n${wc.url}`}>
-									{wc.path}
+									{wcRepository?.name} / {decodeURIComponent(wc.url.slice(wcRepository?.rootUrl.length ?? 0)).replace(/^\//, '') || '/'}
 								</div>
 							</div>
 						</div>
+						<WorkspaceViewTabs wcId={wc.id} />
 						<div className="project-actions">
 							<Button
 								variant="ghost"
@@ -468,14 +486,15 @@ export function App() {
 							>
 								<RefreshCw className={loading[wc.id] ? 'spin' : ''} />
 							</Button>
-							<Button variant="outline" disabled={busyWrite || reviewing} onClick={() => void updateCopy()}>
-								<ArrowDownToLine />
+							<Button variant="outline" disabled={busyWrite || reviewing} aria-busy={preparingUpdate || updating || undefined} onClick={() => void updateCopy()}>
+								{preparingUpdate || updating ? <LoaderCircle className="spin" /> : <ArrowDownToLine />}
 								更新
 							</Button>
 							<Button disabled={busyWrite || reviewing || !snapshot || !commitFiles.length} onClick={() => openCommit()}>
 								<Upload />
 								提交…<span className="button-count">{commitFiles.length}</span>
 							</Button>
+							<WorkingCopyMenu wc={wc} refresh={refresh} requestReview={requestReview} />
 						</div>
 					</div>
 				) : (
@@ -619,6 +638,7 @@ export function App() {
 					<span className="status-divider" />
 					{wc ? `${wc.depth === 'infinity' ? '完整深度' : wc.depth} · ${state.workingCopies.length} 个工作副本` : '准备就绪'}
 				</div>
+				{wc && <WorkspaceStatus wc={wc} />}
 				<button onClick={() => setShowOperations((value) => !value)}>
 					{activeOps.length > 0 ? (
 						<>

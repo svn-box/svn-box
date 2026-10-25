@@ -1,17 +1,17 @@
 import { useEffect, type ReactNode } from 'react';
-import { CircleAlert, Cloud, Code2, Files, GitBranch, History, MoreHorizontal, Terminal, Wrench } from 'lucide-react';
-import { isChanged, type Action, type WorkingCopy, type WorkspaceSession } from '../../../shared/types';
+import { CircleAlert, Code2 } from 'lucide-react';
+import { isChanged, type Action, type WorkingCopy } from '../../../shared/types';
 import { useDiff, useStatus } from '../queries/hooks';
-import { useSessionSlice, useWorkspaceStore, workspaceStore } from '../state/workspace';
-import { api, errorText } from '../lib/api';
-import { notifyError } from '../lib/feedback';
+import { useSessionSlice, useWorkspaceStore } from '../state/workspace';
+import { errorText } from '../lib/api';
+
 import { Button } from './ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+
 import { FilePane, type FileContext } from './FilePane';
 import { HistoryPane } from './HistoryPane';
 import { DetailsPanel } from './DetailsPanel';
 import { DiffView } from './DiffView';
-import { fmtDate } from './file-presentation';
+
 import { resizePanel as resize } from '../lib/panel-resize';
 
 export function WorkingCopyView({
@@ -35,8 +35,7 @@ export function WorkingCopyView({
 	requestReview: (action: Action, paths: string[]) => unknown;
 	openCommit: () => void;
 }) {
-	const session = useSessionSlice(wc.id, ['view', 'lastFileView', 'currentPath']);
-	const patchSession = (patch: Partial<WorkspaceSession>) => workspaceStore.getState().patchSession(patch, wc.id);
+	const session = useSessionSlice(wc.id, ['view', 'currentPath']);
 	const showDetails = useWorkspaceStore((store) => store.showDetails);
 	const listHeight = useWorkspaceStore((store) => store.listHeight);
 	const status = useStatus(wc.id);
@@ -49,76 +48,11 @@ export function WorkingCopyView({
 		!!currentFile &&
 		(isChanged(currentFile) ||
 			(currentFile.kind === 'dir' && snapshot?.files.some((file) => isChanged(file) && (currentFile.path === '.' || file.path.startsWith(`${currentFile.path}/`)))));
-	const showError = notifyError;
 	useEffect(() => {
 		setPreviewHidden(false);
 	}, [wc.id, session.currentPath, session.view]);
 	return (
 		<>
-			<div className="tabs-bar">
-				<div className="view-tabs" role="tablist" aria-label="工作区视图">
-					<button
-						role="tab"
-						aria-selected={session.view !== 'history'}
-						className={session.view !== 'history' ? 'active' : ''}
-						onClick={() => patchSession({ view: session.lastFileView ?? 'changes' })}
-					>
-						<Files size={14} />
-						文件
-					</button>
-					<button
-						role="tab"
-						aria-selected={session.view === 'history'}
-						className={session.view === 'history' ? 'active' : ''}
-						onClick={() => patchSession({ view: 'history' })}
-					>
-						<History size={14} />
-						历史
-					</button>
-				</div>
-				<div className="workspace-context">
-					<span title={wc.url}>
-						<GitBranch size={12} />
-						{decodeURIComponent(wc.url.split('/').at(-1) || '/')}
-					</span>
-					<span className="scan-time" title={fmtDate(snapshot?.scannedAt || wc.lastScan)}>
-						<span className={`local-dot ${currentError ? 'bad' : ''}`} />
-						{status.isFetching ? '正在扫描…' : `本地扫描 ${snapshot ? new Date(snapshot.scannedAt).toLocaleTimeString('zh-CN', { hour12: false }) : '尚未扫描'}`}
-					</span>
-				</div>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button variant="ghost" size="icon" aria-label="工作副本操作">
-							<MoreHorizontal />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem icon={<Cloud />} onSelect={() => void refresh(wc.id, true)}>
-							检查远端变化（不更新）
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							icon={<History />}
-							onSelect={() => {
-								patchSession({ view: 'history', historyTarget: '.' });
-							}}
-						>
-							查询整个工作副本历史
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							icon={<Terminal />}
-							onSelect={() => {
-								void api.call('system', { wcId: wc.id, path: '.', action: 'terminal' }).catch(showError);
-							}}
-						>
-							打开终端
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem icon={<Wrench />} onSelect={() => void requestReview('cleanup', [])}>
-							清理工作副本锁…
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
 			{currentError && (
 				<div className="workspace-error">
 					<CircleAlert size={16} />

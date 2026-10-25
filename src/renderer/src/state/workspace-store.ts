@@ -14,6 +14,7 @@ interface WorkspaceStoreState {
 	sessions: Record<string, WorkspaceSession>;
 	connectionVersion: number;
 	sessionWrites: Record<string, { pending: number; error?: string }>;
+	updateIntents: Record<string, { preparing: boolean; toastId: string; operationId?: string }>;
 	showOperations: boolean;
 	showDetails: boolean;
 	sidebarWidth: number;
@@ -27,6 +28,9 @@ interface WorkspaceStoreState {
 	acceptCommit: (next: AppState, operation: Operation, checkpoint?: SessionCheckpoint, acceptCatalog?: boolean) => void;
 	acceptSnapshot: (snapshot: Snapshot) => void;
 	acceptScanError: (wcId: string, message: string) => void;
+	beginUpdate: (wcId: string, toastId: string) => boolean;
+	bindUpdateOperation: (wcId: string, operationId: string) => string | undefined;
+	finishUpdatePreparation: (wcId: string, toastId: string) => void;
 	setPanel: (panel: 'showOperations' | 'showDetails', value: boolean | ((previous: boolean) => boolean)) => void;
 	setSize: (pane: 'sidebarWidth' | 'detailsWidth' | 'listHeight', value: number | ((previous: number) => number)) => void;
 }
@@ -51,10 +55,11 @@ export function createWorkspaceStore(call: ClientCall, onError: (error: unknown)
 		sessions: {},
 		connectionVersion: 0,
 		sessionWrites: {},
+		updateIntents: {},
 		showOperations: false,
 		showDetails: true,
-		sidebarWidth: 256,
-		detailsWidth: 250,
+		sidebarWidth: 232,
+		detailsWidth: 236,
 		listHeight: 300,
 		accept(next, activate = false) {
 			const { sessions: incoming, activeId, ...catalog } = next;
@@ -71,6 +76,7 @@ export function createWorkspaceStore(call: ClientCall, onError: (error: unknown)
 			set({
 				catalog,
 				sessions,
+				updateIntents: Object.fromEntries(Object.entries(previous.updateIntents).filter(([id]) => ids.has(id))),
 				activeId: activate || !previous.activeId || !ids.has(previous.activeId) ? activeId : previous.activeId,
 				connectionVersion: previous.connectionVersion + (connectionIdentity(previous.catalog) === connectionIdentity(catalog) ? 0 : 1),
 			});
@@ -209,6 +215,32 @@ export function createWorkspaceStore(call: ClientCall, onError: (error: unknown)
 					? { catalog: { ...state.catalog, workingCopies: state.catalog.workingCopies.map((copy) => (copy.id === wcId ? { ...copy, error: message } : copy)) } }
 					: {},
 			);
+		},
+
+		beginUpdate(wcId, toastId) {
+			if (get().updateIntents[wcId]?.preparing || !get().catalog?.workingCopies.some((copy) => copy.id === wcId)) {
+				return false;
+			}
+			set((state) => ({ updateIntents: { ...state.updateIntents, [wcId]: { preparing: true, toastId } } }));
+			return true;
+		},
+
+		bindUpdateOperation(wcId, operationId) {
+			const intent = get().updateIntents[wcId];
+			if (!intent || (intent.operationId && intent.operationId !== operationId) || (!intent.preparing && !intent.operationId)) {
+				return;
+			}
+			if (!intent.operationId) {
+				set((state) => ({ updateIntents: { ...state.updateIntents, [wcId]: { ...intent, operationId } } }));
+			}
+			return intent.toastId;
+		},
+
+		finishUpdatePreparation(wcId, toastId) {
+			const intent = get().updateIntents[wcId];
+			if (intent?.toastId === toastId) {
+				set((state) => ({ updateIntents: { ...state.updateIntents, [wcId]: { ...intent, preparing: false } } }));
+			}
 		},
 
 		setPanel(panel, value) {

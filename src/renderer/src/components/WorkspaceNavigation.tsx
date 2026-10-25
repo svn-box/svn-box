@@ -20,6 +20,7 @@ import {
 	Trash2,
 } from 'lucide-react';
 import type { AppState, Operation, RemoteBookmark, WorkingCopy } from '../../../shared/types';
+import { findCredential } from '../../../shared/auth';
 import { api } from '../lib/api';
 import { notifyError } from '../lib/feedback';
 import { toast } from 'sonner';
@@ -62,6 +63,19 @@ export function WorkspaceNavigation({
 	const renameAfterClose = useRef<RemoteBookmark | undefined>(undefined);
 	const query = search.trim().toLocaleLowerCase();
 	const matches = (text: string) => !query || text.toLocaleLowerCase().includes(query);
+
+	async function forgetAuthentication(url: string, preferredId?: string) {
+		const profile = findCredential(state.credentials, url, preferredId);
+		if (!profile?.rootUrl) {
+			return;
+		}
+		try {
+			onState(await api.call('credential', { id: profile.id, rootUrl: profile.rootUrl, username: '', password: '', remove: true }));
+			toast.success('已忘记此连接的认证');
+		} catch (error) {
+			notifyError(error);
+		}
+	}
 
 	function copyRow(copy: WorkingCopy, shortcut = false) {
 		const running = operations.some((operation) => operation.wcId === copy.id && ['waiting', 'running'].includes(operation.state));
@@ -274,6 +288,11 @@ export function WorkspaceNavigation({
 												{new URL(repo.rootUrl).protocol !== 'file:' && (
 													<ContextMenuItem icon={<KeyRound />} onSelect={() => onAuthenticate(repo.rootUrl, repo.id)}>
 														此连接的认证…
+													</ContextMenuItem>
+												)}
+												{findCredential(state.credentials, repo.rootUrl, repo.credentialId) && (
+													<ContextMenuItem icon={<KeyRound />} destructive onSelect={() => void forgetAuthentication(repo.rootUrl, repo.credentialId)}>
+														忘记此连接的认证
 													</ContextMenuItem>
 												)}
 												<ContextMenuSeparator />

@@ -7,18 +7,19 @@
 	"private": true,
 	"main": "out/main/index.js",
 	"scripts": {
-		"dev": "npm run svn:build && electron-vite dev",
+		"dev": "npm run svn:build && npm run themes:build && electron-vite dev",
 		"start": "npm run svn:build && electron-vite preview",
-		"build": "npm run typecheck && electron-vite build",
+		"build": "npm run themes:build && npm run typecheck && electron-vite build",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
-		"pretest": "npm run svn:build",
+		"pretest": "npm run svn:build && npm run themes:build",
 		"test": "vitest run",
 		"test:e2e": "npm run svn:build && npm run build && node scripts/e2e.mjs",
 		"format": "prettier --write src tests scripts electron.vite.config.ts",
 		"package:mac": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dmg zip --arm64",
 		"package:dir": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dir --arm64",
 		"svn:build": "node scripts/build-svn-runtime.mjs",
-		"icons:build": "node scripts/build-icons.mjs"
+		"icons:build": "node scripts/build-icons.mjs",
+		"themes:build": "node scripts/build-themes.mjs"
 	},
 	"dependencies": {
 		"@radix-ui/react-context-menu": "2.4.1",

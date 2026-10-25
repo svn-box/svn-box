@@ -31,11 +31,18 @@ export function Select({
 					<SelectPrimitive.ScrollUpButton className="select-scroll">
 						<ChevronUp size={13} />
 					</SelectPrimitive.ScrollUpButton>
-					<SelectPrimitive.Viewport>
+					<SelectPrimitive.Viewport className="select-viewport">
 						{options.map((option) => (
-							<SelectPrimitive.Item key={option.value} value={option.value} className="select-item">
-								<SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
-								<SelectPrimitive.ItemIndicator>
+							<SelectPrimitive.Item key={option.value} value={option.value} textValue={option.label} className="select-item">
+								<span className="select-item-copy">
+									<SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+									{option.description && (
+										<small className="select-item-description" title={option.description}>
+											{option.description}
+										</small>
+									)}
+								</span>
+								<SelectPrimitive.ItemIndicator className="select-item-indicator">
 									<Check size={13} />
 								</SelectPrimitive.ItemIndicator>
 							</SelectPrimitive.Item>

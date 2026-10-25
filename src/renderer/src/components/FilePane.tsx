@@ -1,11 +1,13 @@
-import { useCallback, useMemo, useRef, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { CheckCircle2, ChevronDown, LoaderCircle, MoreHorizontal, Search } from 'lucide-react';
-import { isChanged, isConflict, type FileStatus, type WorkingCopy, type WorkspaceSession } from '../../../shared/types';
+import { isChanged, isConflict, type FileStatus, type Filter, type WorkingCopy, type WorkspaceSession } from '../../../shared/types';
 import { useStatus } from '../queries/hooks';
 import { useSessionSlice, workspaceStore } from '../state/workspace';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { VirtualList } from './VirtualList';
 import { FileTreeName } from './FileTreeName';
+import { Combobox } from './ui/combobox';
+import { Button } from './ui/button';
 import { fileState, filters, leaf, parent, StatusBadge } from './file-presentation';
 
 export type FileContext = { x: number; y: number; path: string };
@@ -33,6 +35,7 @@ export function FilePane({
 	const changed = snapshot?.files.filter(isChanged) ?? [];
 	const fileSearch = session.fileSearch ?? '';
 	const fileHeader = useRef<HTMLDivElement>(null);
+	const pane = useRef<HTMLDivElement>(null);
 
 	const visibleFiles = useMemo(() => {
 		const all = snapshot?.files ?? [];
@@ -100,6 +103,28 @@ export function FilePane({
 	const treeView = session.filter === 'all' && !fileSearch;
 	const depthOf = useCallback((file: FileStatus) => (treeView && file.path !== '.' ? file.path.split('/').length : 0), [treeView]);
 	const fileListMinWidth = useMemo(() => 458 + visibleFiles.reduce((depth, file) => Math.max(depth, depthOf(file)), 0) * 16, [visibleFiles, depthOf]);
+	const alignHeader = useCallback((viewport: HTMLElement) => {
+		const header = fileHeader.current;
+		if (header) {
+			// Match the actual content viewport, including a persistent scrollbar gutter.
+			header.style.marginRight = `${viewport.offsetWidth - viewport.clientWidth}px`;
+			header.scrollLeft = viewport.scrollLeft;
+		}
+	}, []);
+
+	useLayoutEffect(() => {
+		const viewport = pane.current?.querySelector<HTMLElement>('.virtual-list');
+		if (!viewport) {
+			if (fileHeader.current) {
+				fileHeader.current.style.marginRight = '0px';
+			}
+			return;
+		}
+		const observer = new ResizeObserver(() => alignHeader(viewport));
+		observer.observe(viewport);
+		alignHeader(viewport);
+		return () => observer.disconnect();
+	}, [visibleFiles.length, alignHeader]);
 
 	function navigateList(event: React.KeyboardEvent<HTMLDivElement>) {
 		const target = event.target as HTMLElement;
@@ -148,6 +173,7 @@ export function FilePane({
 
 	return (
 		<div
+			ref={pane}
 			className="file-pane"
 			style={height ? { height } : undefined}
 			tabIndex={0}
@@ -155,8 +181,8 @@ export function FilePane({
 			onKeyDown={navigateList}
 			onScrollCapture={(event) => {
 				const target = event.target as HTMLElement;
-				if (fileHeader.current && target.classList.contains('virtual-list')) {
-					fileHeader.current.scrollLeft = target.scrollLeft;
+				if (target.classList.contains('virtual-list')) {
+					alignHeader(target);
 				}
 			}}
 		>
@@ -170,14 +196,19 @@ export function FilePane({
 					/>
 					仅显示变更
 				</label>
-				<div className="filter-buttons" role="group" aria-label="文件状态筛选">
-					{filters.map((filter) => (
-						<button className={session.filter === filter.value ? 'active' : ''} key={filter.value} onClick={() => patchSession({ filter: filter.value })}>
-							{filter.label}
-							{filter.value === 'conflicted' && snapshot?.files.some(isConflict) && <span className="conflict-dot" />}
-						</button>
-					))}
-				</div>
+				<Combobox
+					label="文件状态筛选"
+					className="status-filter"
+					value={session.filter}
+					onValueChange={(value) => patchSession({ filter: value as Filter })}
+					options={filters.map((filter) => ({ value: filter.value, label: filter.value === 'all' ? '全部状态' : filter.label }))}
+				/>
+				{snapshot?.files.some(isConflict) && (
+					<Button variant="ghost" size="sm" className="conflict-filter" onClick={() => patchSession({ filter: 'conflicted' })}>
+						<span className="conflict-dot" />
+						冲突 {snapshot.files.filter(isConflict).length}
+					</Button>
+				)}
 				<div className="inline-search">
 					<Search size={12} />
 					<input aria-label="搜索文件" placeholder="筛选路径…" value={fileSearch} onChange={(event) => patchSession({ fileSearch: event.target.value })} />

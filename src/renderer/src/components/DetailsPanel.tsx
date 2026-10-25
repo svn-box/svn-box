@@ -36,11 +36,13 @@ function HistoryDetails({ wcId }: { wcId: string }) {
 	}
 	return (
 		<>
-			<div className="detail-file-icon">
-				<History size={27} />
+			<div className="detail-identity">
+				<div className="detail-file-icon">
+					<History size={27} />
+				</div>
+				<h2>版本 r{selectedLog.revision}</h2>
+				<p className="detail-subtitle">{selectedLog.author || '未知作者'}</p>
 			</div>
-			<h2>版本 r{selectedLog.revision}</h2>
-			<p className="detail-subtitle">{selectedLog.author || '未知作者'}</p>
 			<dl>
 				<dt>提交日期</dt>
 				<dd>{fmtDate(selectedLog.date)}</dd>
@@ -79,11 +81,14 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 	}
 	return (
 		<>
-			<div className="detail-file-icon">
-				<FileIcon path={session.currentPath} kind={currentFile?.kind} size={32} />
+			<div className="detail-identity">
+				<div className="detail-file-icon">
+					<FileIcon path={session.currentPath} kind={currentFile?.kind} size={40} />
+				</div>
+				<h2>{session.currentPath === '.' ? wc.name : leaf(session.currentPath)}</h2>
+				<p className="detail-subtitle">{currentFile ? <StatusBadge file={currentFile} /> : '状态待刷新'}</p>
 			</div>
-			<h2>{session.currentPath === '.' ? wc.name : leaf(session.currentPath)}</h2>
-			<p className="detail-subtitle">{currentFile ? <StatusBadge file={currentFile} /> : '状态待刷新'}</p>
+			<div className="detail-section-title">文件信息</div>
 			{fileInfo.loading && (
 				<div className="details-loading">
 					<LoaderCircle className="spin" size={13} />
@@ -101,12 +106,6 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 				<dd>{fmtDate(currentFile?.date)}</dd>
 				<dt>文件类型</dt>
 				<dd>{currentFile?.kind === 'dir' ? '目录' : currentFile?.kind === 'symlink' ? '符号链接' : '文件'}</dd>
-				{fileInfo.info?.url && (
-					<>
-						<dt>仓库 URL</dt>
-						<dd className="break-all">{fileInfo.info.url}</dd>
-					</>
-				)}
 				{currentFile?.movedFrom && (
 					<>
 						<dt>移动来源</dt>
@@ -120,6 +119,12 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 					</>
 				)}
 			</dl>
+			{fileInfo.info?.url && (
+				<details className="detail-repository">
+					<summary>仓库 URL</summary>
+					<p className="break-all">{fileInfo.info.url}</p>
+				</details>
+			)}
 			{currentFile && isConflict(currentFile) && (
 				<div className="conflict-box">
 					<strong>

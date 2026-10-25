@@ -16,7 +16,7 @@ function workspace(): AppState {
 		groups: [],
 		credentials: [],
 		recentMessages: [],
-		settings: { svnPath: '', theme: 'system', mergeTool: '' },
+		settings: { svnPath: '', theme: 'light', mergeTool: '' },
 	};
 }
 
@@ -35,6 +35,30 @@ afterEach(() => {
 });
 
 describe('渲染进程会话一致性', () => {
+	it('更新准备锁在同一次调用中生效，按副本隔离，旧准备结果不能解锁新的请求', () => {
+		const store = createWorkspaceStore(vi.fn() as ClientCall, vi.fn());
+		store.getState().accept(workspace());
+		expect(store.getState().beginUpdate('a', 'first')).toBe(true);
+		expect(store.getState().beginUpdate('a', 'duplicate')).toBe(false);
+		expect(store.getState().beginUpdate('b', 'other')).toBe(true);
+		store.getState().finishUpdatePreparation('a', 'first');
+		expect(store.getState().updateIntents.b.preparing).toBe(true);
+		expect(store.getState().beginUpdate('a', 'retry')).toBe(true);
+		store.getState().finishUpdatePreparation('a', 'first');
+		expect(store.getState().updateIntents.a).toEqual({ preparing: true, toastId: 'retry' });
+	});
+
+	it('执行确认前后共用更新 toast，另一个操作不能覆盖其绑定', () => {
+		const store = createWorkspaceStore(vi.fn() as ClientCall, vi.fn());
+		store.getState().accept(workspace());
+		store.getState().beginUpdate('a', 'toast');
+		expect(store.getState().bindUpdateOperation('a', 'operation')).toBe('toast');
+		store.getState().finishUpdatePreparation('a', 'toast');
+		expect(store.getState().bindUpdateOperation('a', 'operation')).toBe('toast');
+		expect(store.getState().bindUpdateOperation('a', 'another')).toBeUndefined();
+		expect(store.getState().updateIntents.a.operationId).toBe('operation');
+	});
+
 	it('旧元数据与保存响应不能覆盖当前副本、较新的草稿或另一份会话', async () => {
 		const pending: (() => void)[] = [];
 		const call = vi.fn((method, input) =>
@@ -206,5 +230,106 @@ describe('SVN Query 缓存与请求', () => {
 		expect(queries.client.getQueryState(history.queryKey)?.isInvalidated).toBe(false);
 		await queries.verifyHistory('a');
 		expect(queries.client.getQueryState(history.queryKey)?.isInvalidated).toBe(true);
+	});
+});
+
+describe('操作日志清空缓存一致性', () => {
+	const old = { id: 'old', state: 'success', startedAt: '2026-10-25T00:00:00Z', endedAt: '2026-10-25T00:00:01Z', logs: ['done'] } as Operation;
+
+	it('延迟查询和重复事件不能复活已清空日志，并发新增任务不丢失', async () => {
+		let resolveList!: (operations: Operation[]) => void;
+		let finishClear!: (result: unknown) => void;
+		const call = vi.fn((method) =>
+			method === 'operations'
+				? new Promise((resolve) => {
+						resolveList = resolve;
+					})
+				: new Promise((resolve) => {
+						finishClear = resolve;
+					}),
+		) as ClientCall;
+		const queries = createSvnQueries(call);
+		clients.push(queries.client);
+		queries.acceptOperation(old);
+		const late = queries.client.fetchQuery({ ...queries.operationOptions(), staleTime: 0 }).catch(() => undefined);
+		const clearing = queries.clearOperations(['old']);
+		await vi.waitFor(() => expect(finishClear).toBeTypeOf('function'));
+		const running = { ...old, id: 'new', state: 'running', endedAt: undefined } as Operation;
+		queries.acceptOperation(running);
+		finishClear({ removedIds: ['old'], operations: [] });
+		await clearing;
+		resolveList([old]);
+		await late;
+		await Promise.resolve();
+		expect(queries.acceptOperation(old)).toBeUndefined();
+		expect(queries.client.getQueryData<Operation[]>(queryKeys.operations)?.map((operation) => operation.id)).toEqual(['new']);
+		const reload = queries.client.fetchQuery({ ...queries.operationOptions(), staleTime: 0 });
+		resolveList([old, running]);
+		expect((await reload).map((operation) => operation.id)).toEqual(['new']);
+	});
+
+	it('清空失败不丢记录，旧的运行任务不被最近100条终态挤掉', async () => {
+		const queries = createSvnQueries(
+			vi.fn(async () => {
+				throw new Error('磁盘不可写');
+			}) as ClientCall,
+		);
+		clients.push(queries.client);
+		queries.acceptOperation(old);
+		await expect(queries.clearOperations(['old'])).rejects.toThrow('磁盘不可写');
+		expect(queries.client.getQueryData(queryKeys.operations)).toEqual([old]);
+		expect(queries.acceptOperation(old)).toEqual(old);
+		const many = Array.from({ length: 110 }, (_, index) => ({ ...old, id: String(index), startedAt: '2026-10-26T00:00:00Z' }));
+		const active = { ...old, state: 'running', endedAt: undefined } as Operation;
+		const merged = mergeOperations(many, [active]);
+		expect(merged).toHaveLength(101);
+		expect(merged).toContainEqual(active);
+	});
+});
+
+describe('操作事件时序与保留上限', () => {
+	const running = { id: 'old', label: '更新工作副本', state: 'running', startedAt: '2026-10-25T00:00:00Z', sequence: 2, logs: [] } as Operation;
+
+	it('迟到的 execute 排队响应不能覆盖正在执行的事件，兼容旧记录', () => {
+		const waiting = { ...running, state: 'waiting', sequence: 1 } as Operation;
+		expect(mergeOperations([waiting], [running])).toEqual([running]);
+		expect(mergeOperations([{ ...waiting, sequence: undefined }], [{ ...running, sequence: undefined }])).toEqual([{ ...running, sequence: undefined }]);
+	});
+
+	it('日志到达截断上限后仍按序号接收较短的新输出', () => {
+		const full = { ...running, logs: ['older output'], sequence: 3 };
+		const truncated = { ...running, logs: ['new tail'], sequence: 4 };
+		expect(mergeOperations([truncated], [full])).toEqual([truncated]);
+		expect(mergeOperations([full], [truncated])).toEqual([truncated]);
+	});
+
+	it('查询先看到终态时，迟到的运行事件不能占用真正终态的处理序号', () => {
+		const queries = createSvnQueries(vi.fn() as ClientCall);
+		clients.push(queries.client);
+		queries.acceptOperation(running);
+		const completed = { ...running, state: 'success', endedAt: '2026-10-26T00:00:02Z', sequence: 4 } as Operation;
+		queries.client.setQueryData(queryKeys.operations, [completed]);
+		expect(queries.acceptOperation({ ...running, sequence: 3 })).toBeUndefined();
+		expect(queries.acceptOperation(completed)).toEqual(completed);
+		expect(queries.acceptOperation(completed)).toBeUndefined();
+		const boot = createSvnQueries(vi.fn() as ClientCall);
+		clients.push(boot.client);
+		boot.client.setQueryData(queryKeys.operations, [completed]);
+		expect(boot.acceptOperation(completed)).toEqual(completed);
+	});
+
+	it('满额后长任务终态仍交给运行时处理，旧排队响应和重复终态不能复活任务', () => {
+		const queries = createSvnQueries(vi.fn() as ClientCall);
+		clients.push(queries.client);
+		queries.acceptOperation(running);
+		for (let index = 0; index < 101; index++) {
+			queries.acceptOperation({ ...running, id: `new-${index}`, state: 'success', startedAt: '2026-10-26T00:00:00Z', endedAt: '2026-10-26T00:00:01Z', sequence: 3 });
+		}
+		const completed = { ...running, state: 'success', endedAt: '2026-10-26T00:00:02Z', sequence: 3 } as Operation;
+		expect(queries.acceptOperation(completed)).toEqual(completed);
+		expect(queries.client.getQueryData<Operation[]>(queryKeys.operations)).toHaveLength(100);
+		expect(queries.acceptOperation({ ...running, state: 'waiting', sequence: 1 })).toBeUndefined();
+		expect(queries.acceptOperation(completed)).toBeUndefined();
+		expect(queries.client.getQueryData<Operation[]>(queryKeys.operations)?.some((operation) => operation.id === running.id)).toBe(false);
 	});
 });

@@ -119,6 +119,15 @@ async function closeRemote() {
 	await desktop.page.getByRole('dialog', { name: '仓库浏览与检出', exact: true }).getByRole('button', { name: '关闭', exact: true }).click();
 }
 
+async function openConnectionEditor() {
+	await desktop.page.getByRole('button', { name: '浏览仓库 认证仓库一', exact: true }).click({ button: 'right' });
+	await desktop.page.getByRole('menuitem', { name: '此连接的认证…', exact: true }).click();
+	const editor = desktop.page.getByRole('dialog', { name: '连接认证', exact: true });
+	await editor.waitFor();
+	await desktop.page.waitForFunction((input) => !input.disabled, await editor.getByLabel('密码', { exact: true }).elementHandle());
+	return editor;
+}
+
 try {
 	for (const name of ['one', 'two', 'three']) {
 		const repository = join(root, name);
@@ -154,13 +163,51 @@ try {
 	const login = page.getByRole('dialog', { name: '连接认证', exact: true });
 	await login.waitFor();
 	assert.equal(await login.getByLabel('用户名', { exact: true }).inputValue(), 'shared');
+	assert.equal(await login.getByLabel('密码', { exact: true }).inputValue(), '', '不得回填已保存的密码');
+	assert.equal(await login.getByLabel('密码', { exact: true }).evaluate((input) => input === document.activeElement), true, '用户名已知时聚焦密码');
+	const authenticationLayout = await login.evaluate((dialog) => {
+		const rect = dialog.getBoundingClientRect();
+		const controls = [...dialog.querySelectorAll('form > label > input')].map((control) => {
+			const bounds = control.getBoundingClientRect();
+			return { left: bounds.left, width: bounds.width, height: bounds.height };
+		});
+		return { width: rect.width, height: rect.height, identityWidth: dialog.querySelector('.authentication-identity').getBoundingClientRect().width, controls };
+	});
+	assert.equal(authenticationLayout.width, 510);
+	assert.equal(authenticationLayout.identityWidth, 176);
+	assert.ok(authenticationLayout.height <= 375, JSON.stringify(authenticationLayout));
+	assert.equal(authenticationLayout.controls.length, 2);
+	assert.ok(authenticationLayout.controls.every((control) => control.height === 34 && Math.abs(control.left - authenticationLayout.controls[0].left) < 0.5));
+	assert.equal(await login.getByRole('button', { name: '取消', exact: true }).count(), 1);
+	await login.getByLabel('密码', { exact: true }).fill(secret);
+	await login.screenshot({ path: resolve('test-results/authentication-c-light.png') });
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await page.waitForFunction(() => document.documentElement.classList.contains('dark'));
+	await login.screenshot({ path: resolve('test-results/authentication-c-dark.png') });
+	await page.emulateMedia({ colorScheme: 'light' });
+	await page.waitForFunction(() => !document.documentElement.classList.contains('dark'));
+	await login.locator('.authentication-options > summary').click();
+	await login.getByRole('combobox', { name: '认证适用范围', exact: true }).click();
+	assert.equal(await page.getByRole('listbox').locator('input').count(), 0, '两个范围选项不需要搜索框');
+	assert.equal(await page.getByRole('option').count(), 2);
+	await page.getByRole('listbox').screenshot({ path: resolve('test-results/authentication-c-range.png') });
+	await page.keyboard.press('End');
+	await page.waitForFunction(() => [...document.querySelectorAll('[role="option"]')].at(-1) === document.activeElement);
+	await page.keyboard.press('Enter');
+	await page.waitForFunction(() => document.querySelector('.authentication-options .select-trigger')?.textContent?.includes('仅当前仓库路径'));
+	assert.equal(await login.locator('.authentication-root').count(), 0);
+	assert.equal(await login.locator('.authentication-options > summary small').count(), 0);
+	await login.getByRole('combobox', { name: '认证适用范围', exact: true }).click();
+	await page.getByRole('option', { name: /此连接的所有子路径/ }).click();
+	await login.locator('.authentication-options > summary').click();
 	await page.screenshot({ path: resolve('test-results/connection-authentication.png') });
 	await login.getByLabel('密码', { exact: true }).fill('wrong-auth-ui-secret');
-	await login.getByRole('button', { name: '保存并继续', exact: true }).click();
+	await login.getByRole('button', { name: '保存', exact: true }).click();
 	await login.getByRole('alert').waitFor();
+	assert.equal(await login.getByLabel('密码', { exact: true }).inputValue(), '', '连接失败后不重新填入被拒绝的密码');
 	assert.equal((await call('state')).credentials.length, 1);
 	await login.getByLabel('密码', { exact: true }).fill(secret);
-	await login.getByRole('button', { name: '保存并继续', exact: true }).click();
+	await login.getByRole('button', { name: '保存', exact: true }).click();
 	await waitUntil(async () => (await call('state')).repositories.length === 1);
 	await page.locator('.authentication-dialog').waitFor({ state: 'hidden' });
 	let state = await call('state');
@@ -175,7 +222,7 @@ try {
 	await closeRemote();
 	await openRepository(`${other}/one/trunk`, '另一个连接');
 	await login.waitFor();
-	await login.getByRole('button', { name: '取消', exact: true }).click();
+	await login.getByRole('button', { name: '关闭', exact: true }).click();
 	await page.waitForFunction(() => !document.querySelector('.authentication-dialog'));
 	assert.equal((await call('state')).repositories.length, 2);
 	await closeRemote();
@@ -190,22 +237,47 @@ try {
 	}, workingCopy);
 	await desktop.instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('svnbox:navigate', 'add'));
 	await desktop.page.waitForSelector('.project-header');
+	let editor = await openConnectionEditor();
+	assert.equal(await editor.getByLabel('密码', { exact: true }).getAttribute('type'), 'password');
+	assert.equal(await editor.getByLabel('密码', { exact: true }).inputValue(), secret, '编辑已有认证时载入真实已保存密码');
+	await editor.locator('.authentication-options > summary').click();
+	await editor.screenshot({ path: resolve('test-results/authentication-edit-saved.png') });
+	await editor.getByLabel('用户名', { exact: true }).fill('cancelled-user');
+	await editor.getByLabel('密码', { exact: true }).fill('cancelled-password');
+	await editor.getByRole('button', { name: '取消', exact: true }).click();
+	await editor.waitFor({ state: 'hidden' });
+	editor = await openConnectionEditor();
+	assert.equal(await editor.getByLabel('用户名', { exact: true }).inputValue(), 'shared');
+	assert.equal(await editor.getByLabel('密码', { exact: true }).inputValue(), secret, '取消不能修改已保存密码');
+	const editedSecret = 'edited-connection-secret';
+	await editor.getByLabel('密码', { exact: true }).fill(editedSecret);
+	await editor.getByRole('button', { name: '保存', exact: true }).click();
+	await editor.waitFor({ state: 'hidden' });
+	editor = await openConnectionEditor();
+	assert.equal(await editor.getByLabel('密码', { exact: true }).inputValue(), editedSecret, '保存后重新打开读取修改后的密码');
+	assert.ok(!(await readFile(join(data, 'credentials.enc.json'), 'utf8')).includes(editedSecret));
+	assert.ok(!JSON.stringify(await call('state')).includes(editedSecret));
+	await editor.getByLabel('密码', { exact: true }).fill(secret);
+	await editor.getByRole('button', { name: '保存', exact: true }).click();
+	await editor.waitFor({ state: 'hidden' });
 	await desktop.page.getByRole('button', { name: '浏览仓库 认证仓库一', exact: true }).click({ button: 'right' });
-	await desktop.page.getByRole('menuitem', { name: '此连接的认证…', exact: true }).click();
-	await desktop.page.getByRole('button', { name: '忘记此连接的认证', exact: true }).click();
+	await desktop.page.getByRole('menuitem', { name: '忘记此连接的认证', exact: true }).click();
 	await waitUntil(async () => (await call('state')).credentials.length === 0);
 	await desktop.page.locator('.authentication-dialog').waitFor({ state: 'hidden' });
 	await desktop.page.getByRole('button', { name: '更新', exact: true }).click();
 	let nextLogin = desktop.page.getByRole('dialog', { name: '连接认证', exact: true });
 	await nextLogin.waitFor();
-	await nextLogin.getByRole('button', { name: '取消', exact: true }).click();
+	assert.equal(await desktop.page.getByRole('button', { name: '更新', exact: true, includeHidden: true }).isDisabled(), true, '认证期间应继续阻止重复更新');
+	await nextLogin.getByLabel('密码', { exact: true }).press('Escape');
 	await nextLogin.waitFor({ state: 'hidden' });
+	await desktop.page.getByText('操作已取消', { exact: true }).waitFor();
+	assert.equal(await desktop.page.getByRole('button', { name: '更新', exact: true }).isEnabled(), true, '取消认证后应恢复更新按钮');
 	assert.equal((await call('operations')).length, 0);
 	await desktop.page.getByRole('button', { name: '更新', exact: true }).click();
 	await nextLogin.waitFor();
 	await nextLogin.getByLabel('用户名', { exact: true }).fill('shared');
 	await nextLogin.getByLabel('密码', { exact: true }).fill(secret);
-	await nextLogin.getByRole('button', { name: '保存并继续', exact: true }).click();
+	await nextLogin.getByRole('button', { name: '保存', exact: true }).click();
 	await waitUntil(async () => (await call('operations')).some((operation) => operation.label === '更新工作副本' && operation.state === 'success'));
 	assert.equal((await call('operations')).length, 1);
 	assert.equal(await desktop.page.locator('.sidebar-footer').count(), 0);
@@ -216,6 +288,12 @@ try {
 				result: 'passed',
 				lazyForwarder: !!process.env.SVNBOX_TEST_LAZY_FORWARDER,
 				checks: [
+					'已有认证掩码编辑、保存与取消',
+					'编辑密码不进入元数据或明文文件',
+					'保存/取消按钮及范围冗余文案移除',
+					'C 版分栏认证、等高控件和对齐',
+					'认证浅深色和无搜索范围 Select',
+					'连接登录默认聚焦密码、拒绝后不回填错误密码',
 					'全局设置无密码配置',
 					'左下角版本行移除',
 					'用户名 URL 预填',

@@ -3,7 +3,7 @@ import { notifyError, notifyOperation } from '../lib/feedback';
 import { workspaceStore } from '../state/workspace';
 import type { AppState, Operation } from '../../../shared/types';
 import type { SessionCheckpoint } from '../state/workspace-store';
-import { createSvnQueries, mergeOperations, queryKeys } from './svn-queries';
+import { createSvnQueries } from './svn-queries';
 
 export const svnQueries = createSvnQueries(
 	api.call,
@@ -12,6 +12,18 @@ export const svnQueries = createSvnQueries(
 );
 let workspaceRead = 0;
 let appliedRead = 0;
+
+export function acceptOperation(operation: Operation): Operation | undefined {
+	const current = svnQueries.acceptOperation(operation);
+	if (!current) {
+		return;
+	}
+	const state = workspaceStore.getState();
+	const project = state.catalog?.workingCopies.find((copy) => copy.id === current.wcId)?.name ?? '远端仓库';
+	const toastId = current.label === '更新工作副本' && current.wcId ? state.bindUpdateOperation(current.wcId, current.id) : undefined;
+	notifyOperation(current, project, () => state.setPanel('showOperations', true), toastId);
+	return current;
+}
 
 export async function readWorkspace(operation?: Operation, checkpoint?: SessionCheckpoint): Promise<void> {
 	const request = ++workspaceRead;
@@ -34,9 +46,9 @@ export function subscribeWorkspaceRuntime(onBootError: (error: unknown) => void 
 	window.addEventListener('svnbox:authentication-changed', authenticationChanged);
 	const unsubscribe = api.onOperation((operation) => {
 		const state = workspaceStore.getState();
-		const project = state.catalog?.workingCopies.find((copy) => copy.id === operation.wcId)?.name ?? '远端仓库';
-		notifyOperation(operation, project, () => state.setPanel('showOperations', true));
-		svnQueries.client.setQueryData<Operation[]>(queryKeys.operations, (previous) => mergeOperations([operation], previous));
+		if (!acceptOperation(operation)) {
+			return;
+		}
 		if (operation.wcId && !checkpoints.has(operation.id)) {
 			checkpoints.set(operation.id, state.checkpoint(operation.wcId));
 		}

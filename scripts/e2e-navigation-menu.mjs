@@ -106,20 +106,22 @@ try {
 	assert.ok(Math.max(...columns.icons) - Math.min(...columns.icons) < 0.5, '导航图标应共用对齐列');
 	assert.ok(Math.max(...columns.labels) - Math.min(...columns.labels) < 0.5, '导航名称和路径应共用文字起点');
 	const divider = page.getByRole('separator', { name: '调整导航宽度', exact: true });
+	const initialWidth = Number(await divider.getAttribute('aria-valuenow'));
 	const dividerBounds = await divider.boundingBox();
 	await page.mouse.move(dividerBounds.x + dividerBounds.width / 2, 12);
 	await page.mouse.down();
 	await page.mouse.move(dividerBounds.x + 48, 12, { steps: 4 });
 	await page.mouse.up();
-	assert.ok(Number(await divider.getAttribute('aria-valuenow')) > 280, '标题栏位置应能调整分栏宽度');
+	assert.ok(Number(await divider.getAttribute('aria-valuenow')) > initialWidth + 40, '标题栏位置应能调整分栏宽度');
 	await checkSidebarAlignment();
 	const nextBounds = await divider.boundingBox();
+	const widthBeforeBottomDrag = Number(await divider.getAttribute('aria-valuenow'));
 	const bottom = nextBounds.y + nextBounds.height - 8;
 	await page.mouse.move(nextBounds.x + nextBounds.width / 2, bottom);
 	await page.mouse.down();
 	await page.mouse.move(nextBounds.x - 24, bottom, { steps: 4 });
 	await page.mouse.up();
-	assert.ok(Number(await divider.getAttribute('aria-valuenow')) < 290, '窗口底部应能调整分栏宽度');
+	assert.ok(Number(await divider.getAttribute('aria-valuenow')) < widthBeforeBottomDrag - 20, '窗口底部应能调整分栏宽度');
 	await checkSidebarAlignment();
 	await divider.focus();
 	await page.keyboard.press('Home');
@@ -174,6 +176,7 @@ try {
 	await copyMenu.getByRole('menuitem', { name: '取消收藏', exact: true }).waitFor();
 	await page.keyboard.press('Escape');
 	await copyMenu.waitFor({ state: 'hidden' });
+	await waitUntil(() => favorite.evaluate((node) => document.activeElement === node));
 	assert.equal(await favorite.evaluate((node) => document.activeElement === node), true, 'Escape 应恢复行焦点');
 	await first.focus();
 	await page.keyboard.press('Shift+F10');
@@ -181,6 +184,7 @@ try {
 	await page.keyboard.press('ArrowDown');
 	assert.equal(await copyMenu.locator('[data-highlighted]').count(), 1);
 	await page.keyboard.press('Escape');
+	await waitUntil(() => first.evaluate((node) => document.activeElement === node));
 	assert.equal(await first.evaluate((node) => document.activeElement === node), true);
 	await page.keyboard.press('ContextMenu');
 	await copyMenu.waitFor();
@@ -222,6 +226,36 @@ try {
 		path: resolve('test-results/navigation-menu-detail.png'),
 		clip: { x: Math.max(0, bounds.x - 20), y: Math.max(0, bounds.y - 18), width: bounds.width + 40, height: bounds.height + 44 },
 	});
+	await page.keyboard.press('Escape');
+	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ width: 1000, height: 680 }));
+	await divider.focus();
+	await page.keyboard.press('End');
+	const detailsDivider = page.getByRole('separator', { name: '调整详情宽度', exact: true });
+	const detailsBounds = await detailsDivider.boundingBox();
+	await page.mouse.move(detailsBounds.x, detailsBounds.y + 70);
+	await page.mouse.down();
+	await page.mouse.move(detailsBounds.x - 180, detailsBounds.y + 70, { steps: 6 });
+	await page.mouse.up();
+	const controlsFit = await page.evaluate(() => {
+		const header = document.querySelector('.titlebar').getBoundingClientRect();
+		const pane = document.querySelector('.file-pane').getBoundingClientRect();
+		const toolbar = document.querySelector('.workspace-toolbar').getBoundingClientRect();
+		const headerButtons = [...document.querySelectorAll('.titlebar button')];
+		const browserControls = [...document.querySelector('.workspace-toolbar').children];
+		return {
+			header: headerButtons.every((node) => {
+				const box = node.getBoundingClientRect();
+				return box.right <= header.right && box.top >= header.top && box.bottom <= header.bottom;
+			}),
+			browser: browserControls.every((node) => {
+				const box = node.getBoundingClientRect();
+				return box.left >= pane.left && box.right <= pane.right && box.bottom <= toolbar.bottom;
+			}),
+			page: document.documentElement.scrollWidth <= innerWidth,
+		};
+	});
+	assert.deepEqual(controlsFit, { header: true, browser: true, page: true }, '最小窗口和最大面板宽度下，操作控件仍应可见');
+	await page.screenshot({ path: resolve('test-results/apple-minimum-window.png') });
 	assert.deepEqual(errors, []);
 	console.log(
 		JSON.stringify(
@@ -247,6 +281,7 @@ try {
 					'拖动及窄窗口分界对齐',
 					'顶端和底部都能调整分栏',
 					'分栏支持键盘调整',
+					'最小窗口和最大面板下工具栏自动换行',
 				],
 			},
 			null,

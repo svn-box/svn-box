@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AppState } from '../shared/types';
+import { normalizeTheme } from '../shared/themes';
 import { credentialRoot } from '../shared/auth';
 
 export class Store {
@@ -13,7 +14,7 @@ export class Store {
 		sessions: {},
 		credentials: [],
 		recentMessages: [],
-		settings: { svnPath: '', theme: 'system', mergeTool: '' },
+		settings: { svnPath: '', theme: 'light', mergeTool: '' },
 	};
 	private tail: Promise<void> = Promise.resolve();
 	readonly directory: string;
@@ -29,7 +30,7 @@ export class Store {
 			if (data.version !== 1 || !Array.isArray(data.workingCopies) || !data.sessions || !data.settings) {
 				throw new Error('不支持的数据格式，请保留 workspace.json 后检查');
 			}
-			this.data = { ...data, bookmarks: data.bookmarks ?? [] };
+			this.data = { ...data, bookmarks: data.bookmarks ?? [], settings: { ...data.settings, theme: normalizeTheme(data.settings.theme) } };
 			for (const profile of this.data.credentials) {
 				const repository = this.data.repositories.find((repo) => repo.credentialId === profile.id);
 				if (!profile.rootUrl && repository) {

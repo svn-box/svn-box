@@ -1,4 +1,4 @@
-import { isConflict, type FileStatus, type Filter, type Operation } from '../../../shared/types';
+import { isConflict, type FileStatus, type Filter } from '../../../shared/types';
 export const statusLabels: Record<string, string> = {
 	normal: '正常',
 	modified: '修改',
@@ -37,14 +37,7 @@ export const filters: { value: Filter; label: string }[] = [
 	{ value: 'ignored', label: '忽略' },
 	{ value: 'conflicted', label: '冲突' },
 ];
-export const opLabels: Record<Operation['state'], string> = {
-	waiting: '等待中',
-	running: '执行中',
-	success: '已完成',
-	failed: '失败',
-	cancelled: '已取消',
-	uncertain: '结果待核实',
-};
+export { operationLabels as opLabels } from '../../../shared/operation-log';
 export const fmtDate = (date?: string): string => (date ? new Date(date).toLocaleString('zh-CN', { hour12: false }) : '—');
 
 export const leaf = (path: string): string => path.split('/').at(-1) || path;

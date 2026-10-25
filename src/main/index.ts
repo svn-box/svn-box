@@ -5,6 +5,8 @@ import { dirname, extname, isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { schemas, requestOptionsSchema } from '../shared/validation';
 import type { RpcName, RpcMap, Reply, AppError } from '../shared/types';
+import { getTheme } from '../shared/themes';
+import { operationOutput, operationLabels } from '../shared/operation-log';
 import { SvnService, type Vault } from './service';
 import { Store } from './store';
 import { Runner, SvnError } from './runner';
@@ -161,7 +163,7 @@ function registerIpc(): void {
 						break;
 					case 'settings':
 						value = await service.settings(data);
-						nativeTheme.themeSource = service.store.get().settings.theme;
+						nativeTheme.themeSource = getTheme(service.store.get().settings.theme).scheme;
 						break;
 					case 'pickFolder': {
 						const selected = await dialog.showOpenDialog(window!, { title: '选择文件夹', properties: ['openDirectory', 'createDirectory'] });
@@ -235,6 +237,30 @@ function registerIpc(): void {
 					case 'operations':
 						value = service.getOperations();
 						break;
+					case 'copyOperation': {
+						const operation = service.getOperations().find((entry) => entry.id === data.id);
+						if (!operation) {
+							throw new SvnError({ kind: 'stale', message: '日志已移除，请选择其他记录' });
+						}
+						const project = service.store.get().workingCopies.find((copy) => copy.id === operation.wcId)?.name ?? '远端仓库';
+						clipboard.writeText(
+							[
+								operation.label,
+								project,
+								operationLabels[operation.state],
+								operation.startedAt,
+								operation.endedAt,
+								operation.error?.message,
+								operationOutput(operation),
+							]
+								.filter(Boolean)
+								.join('\n'),
+						);
+						break;
+					}
+					case 'clearOperations':
+						value = await service.clearOperations(data);
+						break;
 					case 'cancel':
 						service.cancel(data.id);
 						break;
@@ -243,6 +269,9 @@ function registerIpc(): void {
 						break;
 					case 'credential':
 						value = await service.credential(data);
+						break;
+					case 'credentialForEdit':
+						value = await service.credentialForEdit(data);
 						break;
 					case 'authentication':
 						value = service.authentication(data);
@@ -269,8 +298,10 @@ async function createWindow(): Promise<void> {
 		minHeight: 680,
 		title: '仓盒 · svnbox',
 		titleBarStyle: 'hiddenInset',
-		trafficLightPosition: { x: 19, y: 22 },
-		backgroundColor: nativeTheme.shouldUseDarkColors ? '#17191c' : '#f8f9fb',
+		trafficLightPosition: { x: 19, y: 26 },
+		backgroundColor: '#00000000',
+		vibrancy: 'sidebar',
+		visualEffectState: 'followWindow',
 		webPreferences: { preload: join(currentDirectory, '../preload/index.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
 	});
 	window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -327,7 +358,7 @@ app.whenReady().then(async () => {
 		app.quit();
 		return;
 	}
-	nativeTheme.themeSource = service.store.get().settings.theme;
+	nativeTheme.themeSource = getTheme(service.store.get().settings.theme).scheme;
 	registerIpc();
 	Menu.setApplicationMenu(
 		Menu.buildFromTemplate([

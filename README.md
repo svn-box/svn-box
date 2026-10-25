@@ -32,6 +32,7 @@ npm run test:e2e        # 构建并运行真实 Electron 界面测试
 npm run build           # 输出 out/
 npm start               # 启动构建后的应用
 npm run icons:build     # 用用户原图生成原生外观与兼容 ICNS
+npm run themes:build    # 从 src/shared/themes.ts 生成完整主题 CSS（build/dev/test 自动调用）
 npm run package:dir     # 生成 arm64 .app
 npm run package:mac     # 生成 arm64 .app、DMG 与 ZIP
 npm run format          # 使用项目 Prettier 配置格式化
@@ -67,10 +68,19 @@ SVNBOX_PACKAGED_APP="$PWD/release/mac-arm64/仓盒.app/Contents/MacOS/仓盒" no
 SVNBOX_PACKAGED_APP="$PWD/release/mac-arm64/仓盒.app/Contents/MacOS/仓盒" node scripts/e2e-history.mjs
 # 侧栏右键、键盘菜单、焦点和满宽选中验证
 SVNBOX_PACKAGED_APP="$PWD/release/mac-arm64/仓盒.app/Contents/MacOS/仓盒" node scripts/e2e-navigation-menu.mjs
+# 更新即时反馈、慢扫描期间连续点击/快捷键防重及失败后重试
+SVNBOX_PACKAGED_APP="$PWD/release/mac-arm64/仓盒.app/Contents/MacOS/仓盒" node scripts/e2e-update-feedback.mjs
+# 设置分页、工具校验、分页输入保留与重启恢复
+SVNBOX_PACKAGED_APP="$PWD/release/mac-arm64/仓盒.app/Contents/MacOS/仓盒" node scripts/e2e-settings.mjs
+# 六套配色、原生明暗外观、系统切换隔离、真实文件/Diff/菜单与主题恢复
+SVNBOX_PACKAGED_APP="$PWD/release/mac-arm64/仓盒.app/Contents/MacOS/仓盒" node scripts/e2e-themes.mjs
+# 操作日志：真实4000文件更新、筛选/复制、取消、按范围清空与重启恢复
+SVNBOX_PACKAGED_APP="$PWD/release/mac-arm64/仓盒.app/Contents/MacOS/仓盒" node scripts/e2e-operations.mjs
 ```
 
 ## 已实现
 
+- macOS 经典分栏外观：顶部文件/历史分段控件、系统侧栏材质、统一浅深色、紧凑文件树、独立检查器与任务弹窗；扫描时间位于状态栏，文件状态使用 shadcn Combobox 筛选。减少透明度及增强对比度时使用实色表面。
 - 多仓库与多副本：真实根目录和 UUID 识别、仓库关联、分组、收藏、搜索、排序；移除记录不删除文件。
 - 独立会话：草稿、选择、筛选、展开目录、当前文件、历史路径及版本；重启恢复，刷新后核对文件选择。
 - 紧凑文件树：26px 行高、16px 固定缩进、类型图标、独立展开箭头、稳定交替底色、深层横向滚动和表头同步。
@@ -78,12 +88,15 @@ SVNBOX_PACKAGED_APP="$PWD/release/mac-arm64/仓盒.app/Contents/MacOS/仓盒" no
 - 差异：内置预览及系统 FileMerge（需安装 Xcode）；本地文本和属性、指定提交差异、统一/并排、行号、变更段跳转；Worker 解析和虚拟行。
 - 提交：逐文件范围、近期说明、实际路径审阅、明确新增父目录/结构目录/移动两端；执行前状态和内容校验；失败保留草稿。
 - 更新、添加、重命名/移动、删除、忽略、还原、清理；危险操作明确列出影响并在界面确认。
+- 点击更新立即显示准备提示并禁用重复触发，扫描和连接检查也在保护范围内；点击和 ⌘U 共用按副本隔离的准备锁。准备、执行、结果更新同一条 toast，准备失败或取消认证后恢复操作入口。
+- 设置分为「通用设置」「工具」：外观提供白色、灰色、海湾蓝、薄荷绿、鸢尾紫、落日橙六套完整配色，缩略卡片预览并即时保存；已移除跟随系统，旧配置加载为白色；工具页检测 SVN、配置外部合并工具，切换分页保留未保存输入。语言入口目前仅显示简体中文，多语言尚未接入。
 - 仓库树统一组织远端路径与本地副本；精确路径书签支持重命名、排序和重启恢复。远端 list 分层浏览，选择 URL 和深度检出，拒绝覆盖已有目标，成功自动加入管理。
 - 仓库/文件/目录历史：按日期分组的可折叠时间线，提交内展开路径及统一/并排 Diff；逐路径查看或通过 FileMerge 比较。50 条一页，分页追加合并日期组，明确区分已加载筛选与服务器查询。历史筛选、折叠和预览按副本保存并在重启后恢复。
 - 文本/属性/树冲突识别与详情，外部工具入口、刷新检查、明确接受工作文件后标记解决。
+- 操作日志：紧凑记录表格与独立输出详情，按状态/项目筛选、搜索原始输出、键盘导航和右键复制；输出行虚拟化、行号、自动跟随及完整复制。清空需确认当前筛选范围内的已结束记录，保留进行中任务和确认后新增的日志，清空结果重启后仍生效。
 - 后台操作队列、实际输出、取消、部分成功提示、错误分型与待核实结果；其他副本仍可查看。
-- 连接认证：没有已保存认证时，在连接前弹出用户名/密码小窗，也可明确选择使用已有 SVN 认证缓存。保存立即在本机加密持久化，再继续连接，服务器无响应不会阻塞保存；密码错误时重新提示。同一连接根的子路径复用，协议/主机/端口隔离，可限定仓库或路径。支持 URL 中的用户名，不接受 URL 密码。连接中可停止或修改认证，关闭浏览窗口会终止旧请求；全局设置不保存密码。
-- Finder 显示、复制绝对路径、打开终端；系统/浅色/深色主题。侧栏仓库、副本、收藏、路径和分组使用右键管理菜单，支持菜单键和 Shift+F10；满宽选中背景、无子项连接线。
+- 连接认证：左侧连接身份、右侧登录表单的分栏布局；认证范围按需展开，使用无搜索的 shadcn Select。没有已保存认证时，在连接前弹窗，也可明确选择使用已有 SVN 认证缓存。连接登录时用户名已知则聚焦密码框，服务器拒绝后不回填错误密码。从连接菜单编辑时，已有密码通过受限 IPC 载入当前 password 表单，可修改并保存；取消不修改原认证。编辑保存仅更新本机配置，连接登录保存后继续原请求；服务器无响应不会阻塞本机保存。同一连接根的子路径复用，协议/主机/端口隔离，可限定仓库或路径。支持 URL 中的用户名，不接受 URL 密码。连接中可停止或修改认证，关闭浏览窗口会终止旧请求；全局设置不保存密码。
+- Finder 显示、复制绝对路径、打开终端；六套固定配色主题。侧栏仓库、副本、收藏、路径和分组使用右键管理菜单，支持菜单键和 Shift+F10；满宽选中背景、无子项连接线。
 - 安全 IPC、沙箱渲染、连接根范围内的加密凭据、日志脱敏、受限路径、external 和嵌套副本边界。
 
 ## 状态与模块边界
@@ -95,6 +108,7 @@ SVNBOX_PACKAGED_APP="$PWD/release/mac-arm64/仓盒.app/Contents/MacOS/仓盒" no
 | `src/renderer/src/queries/` | 状态、属性、信息、Diff、远端目录缓存与历史分页，操作事件订阅 |
 | `src/renderer/src/state/` | 按副本隔离的草稿、选择、筛选、展开目录、历史上下文和共享面板状态 |
 | `src/renderer/src/components/` | 导航、文件、历史、详情、提交与操作记录面板；弹窗输入等使用组件本地状态 |
+| `src/renderer/src/styles/` | 由共享主题定义生成的设计变量、macOS 控件与表面样式；基础布局位于 `styles.css` |
 | `src/renderer/src/App.tsx` | 应用壳、菜单与操作审阅流程 |
 
 查询键包含工作副本、路径和读取模式；历史 Diff 带修订号，本地 Diff 和文件信息带扫描代次。历史分页使用 `useInfiniteQuery`，游标为上一页最小修订号减一。缓存只存在内存中，默认保留五分钟；重新挂载时复用新鲜数据，失效数据重新读取。不自动重试、聚焦刷新或联网刷新，IPC 查询在离线状态也能执行。Query 的 `AbortSignal` 通过请求 ID 接到主进程取消机制。

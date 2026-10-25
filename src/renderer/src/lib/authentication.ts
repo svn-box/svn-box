@@ -1,10 +1,12 @@
 import type { AuthenticationContext } from '../../../shared/types';
 
 export type AuthenticationChoice = 'saved' | 'existing';
+export type AuthenticationIntent = 'connect' | 'edit';
 
 interface AuthenticationRequest {
 	id: string;
 	context: AuthenticationContext;
+	intent: AuthenticationIntent;
 	promise: Promise<AuthenticationChoice>;
 	resolve: (choice: AuthenticationChoice) => void;
 	reject: (error: unknown) => void;
@@ -15,14 +17,20 @@ let requests: AuthenticationRequest[] = [];
 const listeners = new Set<() => void>();
 const cancelled = () => ({ kind: 'cancelled', message: '已取消连接认证' });
 
-export function requestAuthentication(context: AuthenticationContext | null, signal?: AbortSignal): Promise<AuthenticationChoice> {
+export function requestAuthentication(context: AuthenticationContext | null, signal?: AbortSignal, intent: AuthenticationIntent = 'connect'): Promise<AuthenticationChoice> {
 	if (signal?.aborted) {
 		return Promise.reject(cancelled());
 	}
 	if (!context) {
 		return Promise.resolve('saved');
 	}
-	let request = requests.find((request) => request.context.rootUrl === context.rootUrl && request.context.username === context.username);
+	let request = requests.find(
+		(request) =>
+			request.intent === intent &&
+			request.context.rootUrl === context.rootUrl &&
+			request.context.username === context.username &&
+			request.context.credentialId === context.credentialId,
+	);
 	if (!request) {
 		let resolve!: (choice: AuthenticationChoice) => void;
 		let reject!: (error: unknown) => void;
@@ -30,7 +38,7 @@ export function requestAuthentication(context: AuthenticationContext | null, sig
 			resolve = onResolve;
 			reject = onReject;
 		});
-		request = { id: crypto.randomUUID(), context, promise, resolve, reject, consumers: 0 };
+		request = { id: crypto.randomUUID(), context, intent, promise, resolve, reject, consumers: 0 };
 		requests = [...requests, request];
 		listeners.forEach((listener) => listener());
 	}

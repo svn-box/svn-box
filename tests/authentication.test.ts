@@ -112,6 +112,31 @@ it('首次失败返回连接根与用户名；保存后不同 UUID 的子仓库�
 	expect(JSON.stringify(state)).not.toContain('scope-secret');
 });
 
+it('仅向匹配连接的独立编辑接口提供密码，读取不联网也不污染元数据', async () => {
+	const profile = service.store.get().credentials[0];
+	const run = vi.spyOn(service.runner, 'run');
+	const get = vi.spyOn(vault, 'get');
+	try {
+		expect(await service.credentialForEdit({ id: profile.id, rootUrl: base, url: `${base}/one` })).toEqual({ username: 'shared', password: 'scope-secret-123' });
+		expect(run).not.toHaveBeenCalled();
+		get.mockClear();
+		for (const input of [
+			{ id: 'unknown', rootUrl: base, url: `${base}/one` },
+			{ id: profile.id, rootUrl: otherBase, url: `${base}/one` },
+			{ id: profile.id, rootUrl: base, url: `${otherBase}/one` },
+			{ id: profile.id, rootUrl: base, url: `${base.replace('svn://', 'svn://another@')}/one` },
+		]) {
+			await expect(service.credentialForEdit(input)).rejects.toThrow('不属于');
+		}
+		expect(get).not.toHaveBeenCalled();
+		expect(JSON.stringify(service.store.get())).not.toContain('scope-secret-123');
+		expect(JSON.stringify(service.authentication({ url: `${base}/one` }))).not.toContain('scope-secret-123');
+	} finally {
+		run.mockRestore();
+		get.mockRestore();
+	}
+});
+
 it('另一个端口不会收到已保存密码；本机保存与服务器认证分开', async () => {
 	const spy = vi.spyOn(service.runner, 'run');
 	await expect(service.list(`${otherBase}/one`)).rejects.toMatchObject({ info: { kind: 'auth', auth: { rootUrl: otherBase } } });

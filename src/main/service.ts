@@ -1,3 +1,4 @@
+import { appendOperationLog } from './operation-logs';
 import { createHash, randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { lstat, realpath, readFile, readdir, writeFile, rename, readlink, mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -12,6 +13,7 @@ import {
 	isCancellableRpc,
 	isChanged,
 	isConflict,
+	isOperationActive,
 	type AppState,
 	type FileStatus,
 	type Snapshot,
@@ -63,6 +65,7 @@ export class SvnService {
 	private cancelledRequests = new Map<string, number>();
 	private requestContext = new AsyncLocalStorage<AbortSignal>();
 	private operationWrites = Promise.resolve();
+	private operationWriteQueued = false;
 	private emit: (operation: Operation) => void;
 
 	constructor(store: Store, runner: Runner, emit: (operation: Operation) => void = () => {}, vault?: Vault) {
@@ -866,6 +869,27 @@ export class SvnService {
 		return structuredClone(this.operations);
 	}
 
+	async clearOperations(input: RpcMap['clearOperations']['input']): Promise<RpcMap['clearOperations']['output']> {
+		const requested = new Set(input.ids);
+		const eligible = new Set(this.operations.filter((operation) => requested.has(operation.id) && !isOperationActive(operation)).map((operation) => operation.id));
+		let removedIds: string[] = [];
+		const task = this.operationWrites
+			.catch(() => {})
+			.then(async () => {
+				const removed = new Set(this.operations.filter((operation) => eligible.has(operation.id) && !isOperationActive(operation)).map((operation) => operation.id));
+				if (!removed.size) {
+					return;
+				}
+				await this.writeOperations(this.operations.filter((operation) => !removed.has(operation.id)));
+				// Preserve tasks and output added while the atomic file write was in flight.
+				this.operations = this.operations.filter((operation) => !removed.has(operation.id));
+				removedIds = [...removed];
+			});
+		this.operationWrites = task;
+		await task;
+		return { removedIds, operations: this.getOperations() };
+	}
+
 	cancel(id: string): void {
 		this.controllers.get(id)?.abort();
 	}
@@ -903,6 +927,20 @@ export class SvnService {
 			repositoryRoot: repository?.rootUrl ?? credentialRoot(url!),
 			reason: profile ? undefined : 'missing',
 		};
+	}
+
+	async credentialForEdit(input: RpcMap['credentialForEdit']['input']): Promise<RpcMap['credentialForEdit']['output']> {
+		const target = this.url(input.url);
+		const root = credentialRoot(input.rootUrl);
+		const profile = findCredential(this.store.get().credentials, target, input.id);
+		if (!profile || profile.id !== input.id || profile.rootUrl !== root) {
+			fail('认证记录不属于此连接或路径');
+		}
+		if (!this.vault) {
+			fail('系统安全存储不可用，无法读取认证');
+		}
+		// Only the explicit editor receives this value; catalog and authentication context stay secret-free.
+		return { username: profile!.username, password: (await this.vault!.get(profile!.id)) ?? '' };
 	}
 
 	async credential(input: RpcMap['credential']['input']): Promise<AppState> {
@@ -961,7 +999,11 @@ export class SvnService {
 	}
 
 	async flush(): Promise<void> {
-		await this.operationWrites;
+		let pending: Promise<void>;
+		do {
+			pending = this.operationWrites;
+			await pending;
+		} while (pending !== this.operationWrites);
 	}
 
 	private assertRequestActive(): void {
@@ -1264,7 +1306,7 @@ export class SvnService {
 		work: (signal: AbortSignal, log: (text: string) => void) => Promise<void>,
 		commit = false,
 	): Promise<Operation> {
-		const operation: Operation = { id: randomUUID(), wcId, label, state: 'waiting', startedAt: new Date().toISOString(), logs: [] };
+		const operation: Operation = { id: randomUUID(), wcId, label, state: 'waiting', sequence: 0, startedAt: new Date().toISOString(), logs: [] };
 		const controller = new AbortController();
 		this.controllers.set(operation.id, controller);
 		this.operations.unshift(operation);
@@ -1286,10 +1328,7 @@ export class SvnService {
 					this.publish(operation);
 					started = true;
 					await work(controller.signal, (text) => {
-						operation.logs.push(redact(text));
-						if (operation.logs.length > 300) {
-							operation.logs.shift();
-						}
+						appendOperationLog(operation.logs, redact(text));
 						this.publish(operation);
 					});
 					operation.state = 'success';
@@ -1321,14 +1360,25 @@ export class SvnService {
 	}
 
 	private publish(operation: Operation): void {
+		operation.sequence = (operation.sequence ?? 0) + 1;
 		this.emit(structuredClone(operation));
-		const data = JSON.stringify(this.operations);
+		if (this.operationWriteQueued) {
+			return;
+		}
+		this.operationWriteQueued = true;
 		this.operationWrites = this.operationWrites
 			.catch(() => {})
 			.then(async () => {
-				const path = join(this.store.directory, 'operations.json');
-				await writeFile(`${path}.tmp`, data, { mode: 0o600 });
-				await rename(`${path}.tmp`, path);
+				// A burst needs one pending snapshot; output arriving during I/O schedules the next.
+				this.operationWriteQueued = false;
+				await this.writeOperations(this.operations);
 			});
+		void this.operationWrites.catch(() => {});
+	}
+
+	private async writeOperations(operations: Operation[]): Promise<void> {
+		const path = join(this.store.directory, 'operations.json');
+		await writeFile(`${path}.tmp`, JSON.stringify(operations), { mode: 0o600 });
+		await rename(`${path}.tmp`, path);
 	}
 }

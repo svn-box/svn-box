@@ -100,12 +100,21 @@ try {
 			) < 1,
 	);
 	assert.equal(alignedWide, true);
-	await page.getByRole('button', { name: '修改', exact: true }).click();
+	const fileToolbarHeight = await page.locator('.workspace-toolbar').evaluate((node) => node.getBoundingClientRect().height);
+	await page.getByRole('combobox', { name: '文件状态筛选', exact: true }).click();
+	await page.getByRole('option', { name: '修改', exact: true }).click();
 	await page.waitForFunction(() => document.querySelectorAll('.file-row').length === 2);
 	assert.equal(await page.locator('.file-row[data-depth="0"]').count(), 2);
 	assert.equal(await page.locator('.file-entry .tree-disclosure').count(), 0);
-	await page.getByRole('tab', { name: '历史', exact: true }).click();
+	await page.getByRole('tab', { name: '文件', exact: true }).focus();
+	await page.keyboard.press('ArrowRight');
 	await page.waitForSelector('.history-commit');
+	assert.equal(await page.locator('.workspace-toolbar').evaluate((node) => node.getBoundingClientRect().height), fileToolbarHeight);
+	const toolbarControls = await page.locator('.history-filter').evaluate((node) => ({
+		search: node.querySelector('.inline-search').getBoundingClientRect().height,
+		refresh: node.querySelector('.history-refresh').getBoundingClientRect().height,
+	}));
+	assert.equal(toolbarControls.search, toolbarControls.refresh);
 	assert.equal(
 		await page
 			.locator('.history-commit')
@@ -114,10 +123,12 @@ try {
 		54,
 	);
 	assert.ok((await page.locator('.timeline-row').count()) < 100, '历史路径列表也应虚拟化');
-	await page.getByRole('tab', { name: '文件', exact: true }).click();
+	await page.getByRole('tab', { name: '历史', exact: true }).focus();
+	await page.keyboard.press('ArrowLeft');
 	await page.waitForFunction(() => document.querySelectorAll('.file-row').length === 2);
 	assert.equal(await page.locator('.file-row').evaluateAll((rows) => rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top), 26);
-	await page.getByRole('button', { name: '全部', exact: true }).click();
+	await page.getByRole('combobox', { name: '文件状态筛选', exact: true }).click();
+	await page.getByRole('option', { name: '全部状态', exact: true }).click();
 	await page.getByRole('button', { name: 'config.json', exact: true }).waitFor();
 	await page.getByRole('button', { name: '中文 @ 文件.ts', exact: true }).click();
 	await page.waitForSelector('.file-row.selected[data-depth="14"]');
@@ -138,7 +149,7 @@ try {
 	await page.getByRole('button', { name: '收起差异预览', exact: true }).waitFor();
 	await page.getByRole('button', { name: '收起差异预览', exact: true }).click();
 	await page.getByRole('button', { name: '设置', exact: false }).first().click();
-	await page.getByRole('button', { name: '深色', exact: true }).click();
+	await page.getByRole('button', { name: '灰色', exact: true }).click();
 	await page.getByRole('button', { name: '关闭', exact: true }).first().click();
 	await page.locator('.file-pane').focus();
 	await page.keyboard.press('Home');
@@ -202,6 +213,16 @@ try {
 	);
 } catch (error) {
 	console.error(error);
+	console.error(
+		await page
+			?.evaluate(() =>
+				['.file-table-header', '[aria-label="工作副本文件"]'].map((selector) => {
+					const element = document.querySelector(selector);
+					return { selector, width: element?.clientWidth, scrollWidth: element?.scrollWidth, scrollLeft: element?.scrollLeft };
+				}),
+			)
+			.catch(() => []),
+	);
 	await page?.screenshot({ path: resolve('test-results/file-tree-failure.png') }).catch(() => {});
 	throw error;
 } finally {

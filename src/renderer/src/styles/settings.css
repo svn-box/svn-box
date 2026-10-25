@@ -1,0 +1,365 @@
+.dialog-content.settings-dialog {
+	width: var(--settings-width);
+	height: var(--settings-height);
+	max-width: calc(100vw - 48px);
+	max-height: calc(100vh - 48px);
+	padding: 0;
+	overflow: hidden;
+}
+
+.settings-header {
+	flex-shrink: 0;
+	padding: 22px 28px 18px;
+}
+
+.settings-header .dialog-title {
+	margin: 0;
+	font-size: 20px;
+	line-height: 28px;
+	letter-spacing: -0.3px;
+}
+
+.settings-dialog .dialog-x {
+	top: 23px;
+	right: 22px;
+}
+
+.settings-layout {
+	display: grid;
+	grid-template-columns: var(--settings-navigation-width) minmax(0, 1fr);
+	flex: 1;
+	min-height: 0;
+}
+
+.settings-navigation {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 6px 8px 20px 16px;
+}
+
+.settings-navigation .button {
+	justify-content: flex-start;
+	gap: 10px;
+	height: 38px;
+	min-height: 38px;
+	padding: 0 12px;
+	font-size: 13px;
+	font-weight: 400;
+	border-radius: 9px;
+}
+
+.settings-navigation .button svg {
+	width: 17px;
+	height: 17px;
+}
+
+.settings-navigation .button[aria-selected='true'] {
+	background: var(--hover);
+	font-weight: 600;
+}
+
+.settings-page {
+	min-width: 0;
+	min-height: 0;
+	overflow: auto;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+	padding: 14px 28px 24px 28px;
+}
+
+.settings-page h2 {
+	margin: 0 0 14px;
+	font-size: 14px;
+	line-height: 20px;
+	font-weight: 600;
+}
+
+.settings-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+	padding: 20px 0;
+	border-bottom: 1px solid var(--border);
+}
+
+.settings-row:last-child {
+	border-bottom: 0;
+}
+
+.settings-row-copy {
+	min-width: 0;
+}
+
+.settings-row h3 {
+	margin: 0;
+	font-size: 13px;
+	line-height: 20px;
+	font-weight: 500;
+}
+
+.settings-row-copy p,
+.settings-help {
+	margin: 6px 0 0;
+	font-size: 12px;
+	line-height: 20px;
+	color: var(--muted);
+	overflow-wrap: anywhere;
+}
+
+.settings-row > .combobox-trigger {
+	flex-shrink: 0;
+	width: 142px;
+	height: 34px;
+	font-size: 12px;
+}
+
+.settings-appearance,
+.settings-tool {
+	display: block;
+}
+
+.settings-row:has(.settings-row-copy):not(.settings-tool) {
+	padding-block: 14px;
+}
+
+.settings-themes {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 12px;
+	margin-top: 16px;
+}
+
+.settings-themes .button {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	gap: 5px;
+	height: 110px;
+	padding: 8px;
+	border: 1px solid var(--border-input);
+	border-radius: 10px;
+	font-size: 12px;
+	font-weight: 500;
+	background: var(--surface);
+	min-width: 0;
+}
+
+.settings-themes .button:hover {
+	border-color: var(--accent);
+	background: var(--hover);
+}
+
+.settings-themes .button[aria-pressed='true'] {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 1px var(--accent);
+	background: var(--accent-soft);
+}
+
+.theme-preview {
+	position: relative;
+	display: block;
+	width: 100%;
+	height: 52px;
+	flex-shrink: 0;
+	border-radius: 5px;
+	border: 1px solid var(--border-input);
+	background: var(--bg);
+	overflow: hidden;
+}
+
+.theme-preview-chrome {
+	position: absolute;
+	inset: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	height: 12px;
+	padding-left: 5px;
+	background: var(--chrome);
+	border-bottom: 1px solid var(--border);
+}
+
+.theme-preview-chrome i {
+	width: 3px;
+	height: 3px;
+	border-radius: 50%;
+	background: var(--muted);
+}
+
+.theme-preview-sidebar {
+	position: absolute;
+	inset: 12px auto 0 0;
+	width: 29%;
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	padding: 7px 4px;
+	background: var(--sidebar);
+	border-right: 1px solid var(--border);
+}
+
+.theme-preview-sidebar i {
+	height: 3px;
+	width: 78%;
+	background: var(--muted);
+	border-radius: 1px;
+}
+
+.theme-preview-sidebar i:first-child {
+	width: 100%;
+	height: 7px;
+	background: var(--accent);
+}
+
+.theme-preview-content {
+	position: absolute;
+	inset: 12px 0 0 29%;
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	padding: 8px 7px;
+}
+
+.theme-preview-content i {
+	width: 86%;
+	height: 3px;
+	background: var(--muted);
+	border-radius: 1px;
+	opacity: 0.6;
+}
+
+.theme-preview-content i:nth-child(2) {
+	width: 64%;
+}
+
+.theme-preview-content b {
+	position: absolute;
+	bottom: 6px;
+	right: 6px;
+	width: 22px;
+	height: 7px;
+	border-radius: 2px;
+	background: var(--accent-strong);
+}
+
+.settings-theme-caption {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	line-height: 16px;
+	margin-top: 1px;
+}
+
+.settings-theme-caption svg {
+	color: var(--accent);
+	width: 13px;
+	height: 13px;
+}
+
+.settings-theme-description {
+	width: 100%;
+	font-size: 10px;
+	line-height: 12px;
+	font-weight: 400;
+	color: var(--muted);
+	text-align: left;
+}
+
+.settings-tool label {
+	margin: 16px 0 0;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.settings-tool:first-of-type {
+	padding-top: 8px;
+}
+
+.settings-tool:last-of-type label {
+	margin-top: 0;
+	font-size: 13px;
+}
+
+.settings-tool input {
+	height: 34px;
+	font-size: 12px;
+	font-weight: 400;
+}
+
+.settings-detection {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	margin-top: 14px;
+	font-size: 12px;
+	line-height: 18px;
+}
+
+.settings-detection > svg {
+	flex-shrink: 0;
+	width: 15px;
+	height: 15px;
+	margin-top: 2px;
+}
+
+.settings-detection.good {
+	color: var(--green);
+}
+
+.settings-tool-error {
+	margin: 0 0 12px;
+	color: var(--danger);
+	font-size: 12px;
+	line-height: 20px;
+	overflow-wrap: anywhere;
+}
+
+.settings-detection p {
+	margin: 4px 0 0;
+	font-size: 11px;
+	line-height: 18px;
+	overflow-wrap: anywhere;
+	color: var(--muted);
+	user-select: text;
+}
+
+.settings-footer {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex-shrink: 0;
+	gap: 9px;
+	min-height: 62px;
+	padding: 14px 24px;
+	border-top: 1px solid var(--border);
+}
+
+.settings-footer > span {
+	flex: 1;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.settings-footer .button {
+	min-width: 68px;
+}
+
+@media (max-width: 760px) {
+	.settings-layout {
+		grid-template-columns: 152px minmax(0, 1fr);
+	}
+
+	.settings-page {
+		padding-inline: 20px;
+	}
+
+	.settings-row:not(.settings-tool, .settings-appearance) {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 12px;
+	}
+}

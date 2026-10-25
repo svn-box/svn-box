@@ -18,7 +18,8 @@ const server = createServer((socket) => {
 	socket.on('close', () => sockets.delete(socket));
 });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-const address = `svn://prompt-user@127.0.0.1:${server.address().port}`;
+const targetPath = `/中文 空格 @/${'很长的项目目录/'.repeat(12)}trunk`;
+const address = `svn://prompt-user@127.0.0.1:${server.address().port}${encodeURI(targetPath)}`;
 async function waitUntil(predicate, timeout = 3500) {
 	const deadline = Date.now() + timeout;
 	while (Date.now() < deadline) {
@@ -47,16 +48,23 @@ try {
 	await login.waitFor({ timeout: 1500 });
 	assert.equal(connections, 0, '无已保存认证时，必须先弹窗，再发起连接');
 	assert.equal(await login.getByLabel('用户名', { exact: true }).inputValue(), 'prompt-user');
+	assert.equal(await login.locator('.authentication-path').textContent(), targetPath);
+	const geometry = await login.evaluate((dialog) => {
+		const path = dialog.querySelector('.authentication-path');
+		return { overflow: dialog.scrollWidth - dialog.clientWidth, pathScrollable: path.scrollHeight > path.clientHeight };
+	});
+	assert.equal(geometry.overflow, 0, '长路径不能撑宽认证窗');
+	assert.equal(geometry.pathScrollable, true, '保留完整长路径并允许滚动查看');
 	await mkdir(resolve('test-results'), { recursive: true });
 	await page.screenshot({ path: resolve('test-results/auth-before-connect.png') });
-	await login.getByRole('button', { name: '取消', exact: true }).click();
+	await login.getByRole('button', { name: '关闭', exact: true }).click();
 	await login.waitFor({ state: 'hidden' });
 	assert.equal(connections, 0);
 	if (process.env.SVNBOX_TEST_AUTH_SAVE) {
 		await page.getByRole('button', { name: '浏览', exact: true }).click();
 		await login.waitFor({ timeout: 1500 });
 		await login.getByLabel('密码', { exact: true }).fill('temporary-prompt-secret');
-		await login.getByRole('button', { name: '保存并继续', exact: true }).click();
+		await login.getByRole('button', { name: '保存', exact: true }).click();
 		await login.waitFor({ state: 'hidden', timeout: 2000 });
 		const state = await page.evaluate(() => window.svnbox.call('state'));
 		assert.equal(state.credentials.length, 1);
@@ -77,8 +85,13 @@ try {
 		await login.waitFor({ timeout: 1500 });
 		await waitUntil(() => sockets.size === 0);
 		stopDurations.push(Date.now() - editStop);
-		await login.getByRole('button', { name: '取消', exact: true }).click();
+		await page.waitForFunction((input) => !input.disabled, await login.getByLabel('密码', { exact: true }).elementHandle());
+		assert.equal(await login.getByLabel('密码', { exact: true }).inputValue(), 'temporary-prompt-secret');
+		const beforeSave = connections;
+		await login.getByRole('button', { name: '保存', exact: true }).click();
 		await login.waitFor({ state: 'hidden' });
+		assert.equal(await page.getByRole('button', { name: '浏览', exact: true }).isEnabled(), true, '保存连接配置不自动启动连接');
+		assert.equal(connections, beforeSave);
 		await page.getByRole('button', { name: '浏览', exact: true }).click();
 		await waitUntil(() => sockets.size > 0);
 		await page.getByRole('dialog', { name: '仓库浏览与检出', exact: true }).getByRole('button', { name: '关闭', exact: true }).click();
@@ -90,6 +103,8 @@ try {
 				result: 'passed',
 				stopDurationsMs: stopDurations,
 				checks: [
+					'编辑保存不自动连接服务器',
+					'中文空格 @ 长路径、完整显示且无溢出',
 					'服务器不回应时也立即弹出认证',
 					'输入用户名预填',
 					'连接前可取消',

@@ -1,4 +1,5 @@
-export type Theme = 'system' | 'light' | 'dark';
+import type { Theme } from './themes';
+export type { Theme } from './themes';
 export type View = 'changes' | 'files' | 'history';
 export type Filter = 'all' | 'modified' | 'added' | 'deleted' | 'unversioned' | 'ignored' | 'conflicted';
 export interface Repository {
@@ -140,11 +141,13 @@ export interface Operation {
 	wcId?: string;
 	label: string;
 	state: OperationState;
+	sequence?: number;
 	startedAt: string;
 	endedAt?: string;
 	logs: string[];
 	error?: AppError;
 }
+export const isOperationActive = (operation: Pick<Operation, 'state'>): boolean => operation.state === 'waiting' || operation.state === 'running';
 export interface AppError {
 	kind: 'auth' | 'certificate' | 'locked' | 'path' | 'network' | 'conflict' | 'cancelled' | 'stale' | 'validation' | 'command' | 'outdated';
 	message: string;
@@ -205,10 +208,13 @@ export interface RpcMap {
 	review: { input: { wcId: string; action: Action; paths: string[]; destination?: string; message?: string }; output: Review };
 	execute: { input: { reviewId: string }; output: Operation };
 	operations: { input: undefined; output: Operation[] };
+	copyOperation: { input: { id: string }; output: void };
+	clearOperations: { input: { ids: string[] }; output: { removedIds: string[]; operations: Operation[] } };
 	cancel: { input: { id: string }; output: void };
 	cancelRequest: { input: { id: string }; output: void };
 	authentication: { input: { url?: string; repositoryId?: string; wcId?: string; reviewId?: string }; output: AuthenticationContext | null };
 	credential: { input: { rootUrl: string; url?: string; name?: string; username: string; password: string; id?: string; remove?: boolean }; output: AppState };
+	credentialForEdit: { input: { id: string; rootUrl: string; url: string }; output: { username: string; password: string } };
 	system: { input: { wcId: string; path: string; action: 'reveal' | 'copy' | 'terminal' | 'merge' }; output: void };
 }
 export type RpcName = keyof RpcMap;

@@ -183,8 +183,8 @@ try {
 	checks.push('方向键和 Home/End 导航，左右展开折叠，焦点可见');
 
 	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('svnbox:navigate', 'settings'));
-	await page.getByRole('button', { name: '深色', exact: true }).click();
-	await page.locator('.dialog-footer').getByRole('button', { name: '关闭', exact: true }).click();
+	await page.getByRole('button', { name: '灰色', exact: true }).click();
+	await page.getByRole('dialog', { name: '设置', exact: true }).getByRole('button', { name: '关闭', exact: true }).first().click();
 	await page.waitForFunction(() => document.documentElement.classList.contains('dark'));
 	await page.screenshot({ path: resolve('test-results/history-timeline-dark.png') });
 	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ width: 1100, height: 760 }));
@@ -210,6 +210,7 @@ setTimeout(() => { const child = spawn(${JSON.stringify(resolve('resources/svn/d
 	await page.getByRole('button', { name: '收起差异预览', exact: true }).click();
 	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('svnbox:navigate', 'settings'));
 	const settings = page.getByRole('dialog', { name: '设置', exact: true });
+	await settings.getByRole('tab', { name: '工具', exact: true }).click();
 	await settings.getByLabel('可执行文件路径').fill(wrapper);
 	await settings.getByRole('button', { name: '保存并检测', exact: true }).click();
 	await settings.getByRole('button', { name: '关闭', exact: true }).first().click();
