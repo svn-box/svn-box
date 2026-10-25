@@ -187,6 +187,8 @@ kbd {
 	margin: 0 7px;
 }
 .app-shell {
+	/* Resolve the divider color before navigation overrides the surface palette. */
+	--pane-divider-color: var(--border);
 	position: relative;
 	height: 100vh;
 	display: flex;
@@ -509,7 +511,7 @@ kbd {
 }
 .sidebar-divider {
 	width: var(--pane-divider-width);
-	background: var(--border);
+	background: var(--pane-divider-color);
 	flex-shrink: 0;
 }
 .sidebar-resizer {
@@ -800,7 +802,6 @@ kbd {
 	background: var(--canvas);
 	color: var(--muted);
 	font-size: 9px;
-	border-top: 1px solid var(--border);
 	border-bottom: 1px solid var(--border);
 	align-items: center;
 }
@@ -2081,7 +2082,7 @@ kbd {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	border-right: 1px solid var(--border);
+	border-right: var(--pane-divider-width) solid var(--pane-divider-color);
 }
 .titlebar .project-header {
 	flex: 1;
@@ -2984,11 +2985,6 @@ kbd {
 	display: inline;
 	font-size: 10px;
 }
-.file-table-header,
-.file-pane > .virtual-list {
-	scrollbar-gutter: stable;
-}
-
 .file-pane:focus-visible {
 	outline: none;
 }
@@ -3008,7 +3004,6 @@ kbd {
 	justify-content: space-between;
 	min-height: 32px;
 	padding: 0 12px 0 16px;
-	border-top: 1px solid var(--border);
 	color: var(--muted);
 	font-size: 11px;
 }
@@ -3026,7 +3021,6 @@ kbd {
 	min-height: 0;
 	overflow: auto;
 	overscroll-behavior: contain;
-	scrollbar-gutter: stable;
 	outline: none;
 }
 .history-day {

@@ -68,13 +68,6 @@
 	padding: 14px 28px 24px 28px;
 }
 
-.settings-page h2 {
-	margin: 0 0 14px;
-	font-size: 14px;
-	line-height: 20px;
-	font-weight: 600;
-}
-
 .settings-row {
 	display: flex;
 	align-items: center;

@@ -16,6 +16,24 @@ let instance;
 let page;
 const errors = [];
 
+async function listChrome(headerSelector, viewportSelector, rowSelector) {
+	return page.evaluate(
+		({ headerSelector, viewportSelector, rowSelector }) => {
+			const toolbar = document.querySelector('.workspace-toolbar');
+			const header = document.querySelector(headerSelector);
+			const viewport = document.querySelector(viewportSelector);
+			const row = document.querySelector(rowSelector);
+			return {
+				separatorWidth: Number.parseFloat(getComputedStyle(toolbar).borderBottomWidth) + Number.parseFloat(getComputedStyle(header).borderTopWidth),
+				rightGap: viewport.getBoundingClientRect().right - row.getBoundingClientRect().right,
+				gutter: viewport.offsetWidth - viewport.clientWidth,
+				overflow: viewport.scrollHeight > viewport.clientHeight,
+			};
+		},
+		{ headerSelector, viewportSelector, rowSelector },
+	);
+}
+
 try {
 	execFileSync('/opt/homebrew/bin/svnadmin', ['create', repository]);
 	svn('mkdir', `${pathToFileURL(repository).href}/trunk`, '-m', '初始化文件视图测试');
@@ -106,6 +124,8 @@ try {
 	await page.waitForFunction(() => document.querySelectorAll('.file-row').length === 2);
 	assert.equal(await page.locator('.file-row[data-depth="0"]').count(), 2);
 	assert.equal(await page.locator('.file-entry .tree-disclosure').count(), 0);
+	const fileChrome = await listChrome('.table-head', '.file-pane > .virtual-list', '.file-row');
+	await page.screenshot({ path: resolve('test-results/list-files-short.png') });
 	await page.getByRole('tab', { name: '文件', exact: true }).focus();
 	await page.keyboard.press('ArrowRight');
 	await page.waitForSelector('.history-commit');
@@ -123,6 +143,21 @@ try {
 		54,
 	);
 	assert.ok((await page.locator('.timeline-row').count()) < 100, '历史路径列表也应虚拟化');
+	const longHistoryChrome = await listChrome('.history-overview', '.history-timeline', '.history-day');
+	await page.screenshot({ path: resolve('test-results/list-history-long.png') });
+	console.log(JSON.stringify({ longHistoryChrome }));
+	assert.equal(longHistoryChrome.overflow, true, '展开的历史应实际超过可视区');
+	assert.equal(longHistoryChrome.rightGap, 0, '长历史的日期栏铺满右侧，滚动条覆盖在内容上');
+	await page.getByRole('button', { name: '收起全部', exact: true }).click();
+	await page.locator('.history-commit').first().waitFor({ state: 'hidden' });
+	const historyChrome = await listChrome('.history-overview', '.history-timeline', '.history-day');
+	await page.screenshot({ path: resolve('test-results/list-history-short.png') });
+	console.log(JSON.stringify({ fileChrome, historyChrome }));
+	for (const [name, chrome] of Object.entries({ fileChrome, historyChrome })) {
+		assert.equal(chrome.separatorWidth, 1, `${name}: 工具条与内容只保留一条分隔线`);
+		assert.equal(chrome.overflow, false, `${name}: 测试短列表应无需纵向滚动`);
+		assert.equal(chrome.rightGap, 0, `${name}: 短列表背景铺满右侧，不预留滚动条空白`);
+	}
 	await page.getByRole('tab', { name: '历史', exact: true }).focus();
 	await page.keyboard.press('ArrowLeft');
 	await page.waitForFunction(() => document.querySelectorAll('.file-row').length === 2);
@@ -177,6 +212,9 @@ try {
 	await page.getByRole('button', { name: '展开 bulk', exact: true }).click();
 	await page.getByRole('button', { name: 'item-000.json', exact: true }).waitFor();
 	assert.ok((await list.getByRole('listitem').count()) < 100, '500 个文件应仅渲染可见窗口');
+	const longFileChrome = await listChrome('.table-head', '.file-pane > .virtual-list', '.file-row');
+	assert.equal(longFileChrome.overflow, true, '500 个文件应实际超过可视区');
+	assert.equal(longFileChrome.gutter, 0, '长文件列表的滚动条也不占内容宽度');
 	await list.evaluate((element) => {
 		element.scrollTop = 8000;
 	});
@@ -203,6 +241,7 @@ try {
 					'横向滚动表头同步',
 					'状态筛选平铺对齐',
 					'文件历史切换后的行高',
+					'文件与历史单条分隔线、长短列表右侧无滚动条占位',
 					'真实大列表虚拟化',
 					'滚动条纹稳定',
 				],

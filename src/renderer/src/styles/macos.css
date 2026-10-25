@@ -15,7 +15,8 @@ body {
 .titlebar {
 	height: var(--titlebar-height);
 	min-height: var(--titlebar-height);
-	background: var(--chrome);
+	/* Keep the navigation material on the same transparent backdrop as the sidebar. */
+	background: linear-gradient(to right, transparent calc(var(--sidebar-width) + var(--pane-divider-width)), var(--chrome) 0);
 	padding-right: 12px;
 }
 
@@ -237,13 +238,16 @@ body {
 	padding-left: 12px;
 }
 
+/* Pixel-sized WebKit scrollbars disable macOS overlay scrolling. */
+.file-pane > .virtual-list,
+.history-timeline {
+	scrollbar-width: thin;
+	scrollbar-color: var(--muted) transparent;
+}
+
 .file-table-header .table-head {
 	background: var(--canvas);
 	font-size: 11px;
-}
-
-.file-table-header {
-	scrollbar-gutter: auto;
 }
 
 .file-row .file-name,

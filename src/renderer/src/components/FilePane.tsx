@@ -106,7 +106,7 @@ export function FilePane({
 	const alignHeader = useCallback((viewport: HTMLElement) => {
 		const header = fileHeader.current;
 		if (header) {
-			// Match the actual content viewport, including a persistent scrollbar gutter.
+			// Keep columns aligned when a visible scrollbar consumes content width.
 			header.style.marginRight = `${viewport.offsetWidth - viewport.clientWidth}px`;
 			header.scrollLeft = viewport.scrollLeft;
 		}

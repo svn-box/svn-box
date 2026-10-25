@@ -17,10 +17,10 @@ const svn = (...args) => execFileSync('/opt/homebrew/bin/svn', args, { encoding:
 const choices = [
 	['light', '白色', false],
 	['dark', '灰色', true],
-	['ocean', '墨蓝', false],
-	['mint', '松绿', false],
-	['iris', '茄紫', true],
-	['sunset', '铜橙', false],
+	['ocean', '深蓝', false],
+	['mint', '青绿', false],
+	['iris', '紫色', true],
+	['sunset', '橙色', false],
 ];
 const checks = [];
 const errors = [];
@@ -155,20 +155,28 @@ try {
 		assert.equal(await page.locator('.diff-view').count(), 1);
 		palettes.push({ id, label, dark, sidebar: before.trim() });
 		await screenshot(`theme-${id}-workspace.png`);
+		await page.getByRole('tab', { name: '历史', exact: true }).click();
+		await page.waitForSelector('.history-day');
+		await page.getByRole('button', { name: '查看 r2 本次差异', exact: true }).click();
+		await page.waitForSelector('.history-inline-diff .diff-line');
+		await screenshot(`theme-${id}-history.png`);
+		await page.getByRole('button', { name: '收起差异预览', exact: true }).click();
+		await page.getByRole('tab', { name: '文件', exact: true }).click();
+		await page.waitForSelector('.diff-view .diff-line');
 		await page.getByRole('button', { name: '工作副本操作', exact: true }).click();
 		await page.getByRole('menuitem', { name: '查询整个工作副本历史', exact: true }).hover();
 		await screenshot(`theme-${id}-menu.png`);
 		await page.keyboard.press('Escape');
 	}
-	checks.push('六套主题真实选择/自动保存、原生窗口明暗、预览卡片不串色、文件与Diff完整切换', '系统明暗不改变所选配色、菜单和选中态随主题更新');
+	checks.push('六套主题真实选择/自动保存、原生窗口明暗、预览卡片不串色、文件与Diff完整切换', '历史时间线与提交差异随主题更新', '系统明暗不改变所选配色、菜单和选中态随主题更新');
 	await page.getByRole('button', { name: '刷新本地状态', exact: true }).click();
 	await page.locator('[data-sonner-toast]').filter({ hasText: '本地状态已刷新' }).waitFor();
 	await screenshot('theme-sunset-toast.png');
 	await settings();
 	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1000, 680));
 	assert.equal(await page.locator('.settings-page').evaluate((element) => element.scrollWidth > element.clientWidth), false);
-	await page.getByRole('button', { name: '茄紫', exact: true }).scrollIntoViewIfNeeded();
-	await page.getByRole('button', { name: '茄紫', exact: true }).focus();
+	await page.getByRole('button', { name: '紫色', exact: true }).scrollIntoViewIfNeeded();
+	await page.getByRole('button', { name: '紫色', exact: true }).focus();
 	await page.keyboard.press('Enter');
 	await page.waitForFunction(() => document.documentElement.dataset.theme === 'iris');
 	await screenshot('theme-small-window.png');
@@ -180,7 +188,7 @@ try {
 	assert.equal(state.settings.theme, 'iris');
 	assert.equal(state.sessions[copy.id].draft, '切换主题仍保留的提交说明');
 	await settings();
-	assert.equal(await page.getByRole('button', { name: '茄紫', exact: true }).getAttribute('aria-pressed'), 'true');
+	assert.equal(await page.getByRole('button', { name: '紫色', exact: true }).getAttribute('aria-pressed'), 'true');
 	checks.push('Toast、小窗口、键盘选择主题、重启保留主题和副本草稿');
 	await instance.close();
 	instance = undefined;

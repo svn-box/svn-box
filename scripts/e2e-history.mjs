@@ -102,6 +102,19 @@ try {
 	assert.match(await page.locator('.history-overview').innerText(), /3 天/);
 	assert.equal(await page.locator('.history-inline-diff').count(), 0);
 	checks.push('真实分页历史按本地日期分组，初始不请求差异');
+	const historyEdges = await page.locator('.history-timeline').evaluate((viewport) => ({
+		overflow: viewport.scrollHeight > viewport.clientHeight,
+		gutter: viewport.offsetWidth - viewport.clientWidth,
+		rightGaps: [...viewport.querySelectorAll('.history-day')].map((day) => viewport.getBoundingClientRect().right - day.getBoundingClientRect().right),
+	}));
+	assert.equal(historyEdges.overflow, true);
+	assert.equal(historyEdges.gutter, 0, '长历史滚动时不留单独的滚动条占位');
+	assert.ok(historyEdges.rightGaps.length > 0);
+	assert.ok(
+		historyEdges.rightGaps.every((gap) => gap === 0),
+		'每个可见日期栏都铺满到时间线右侧',
+	);
+	checks.push('长历史滚动时日期栏满宽，滚动条不占内容宽度');
 
 	// Select the top commit without hiding its paths, then open the comparison inside it.
 	await page.locator('.history-commit').first().locator('.history-commit-toggle').click();

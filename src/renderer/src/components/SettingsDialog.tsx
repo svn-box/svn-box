@@ -137,7 +137,6 @@ export function SettingsDialog({ state, onState, onClose }: { state: WorkspaceCa
 					<section className="settings-page" role="tabpanel" id={`${id}-${page}-panel`} aria-labelledby={`${id}-${page}-tab`} tabIndex={0}>
 						{page === 'general' ? (
 							<>
-								<h2>通用设置</h2>
 								<div className="settings-row">
 									<div className="settings-row-copy">
 										<h3>语言</h3>
@@ -195,7 +194,6 @@ export function SettingsDialog({ state, onState, onClose }: { state: WorkspaceCa
 							</>
 						) : (
 							<>
-								<h2>工具</h2>
 								{toolError && (
 									<p className="settings-tool-error" role="alert">
 										{toolError}
