@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build and packaging output
+/out/
+/dist/
+/release/
+*.tsbuildinfo
+
+# Generated SVN runtime and icon output
+/.cache/
+/resources/svn/
+/resources/icon-previews/
+/resources/icon.icns
+
+# Test output
+/test-results/
+/playwright-report/
+/coverage/
+
+# Local environment files; keep templates
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs and macOS metadata
+*.log
+.DS_Store
+._*
+
+# Local workspace and reference material
+/.wu/
+/docs/
+/replica/

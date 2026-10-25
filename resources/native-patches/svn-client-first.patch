@@ -1,0 +1,20 @@
+--- a/subversion/libsvn_ra_svn/client.c
++++ b/subversion/libsvn_ra_svn/client.c
+@@ -170,6 +170,17 @@
+     return svn_error_wrap_apr(status, _("Can't connect to host '%s'"),
+                               hostname);
+ 
++  /* svnbox, 2026-10-25: wake TCP forwarders that wait for client data.
++   * svnserve accepts leading whitespace before the first protocol tuple.
++   * Keep the normal greeting, capability negotiation and auth exchange. */
++  {
++    apr_size_t prefix_len = 1;
++    status = apr_socket_send(*sock, " ", &prefix_len);
++    if (status || prefix_len != 1)
++      return svn_error_wrap_apr(status ? status : APR_EGENERAL,
++                                _("Can't start SVN connection to '%s'"), hostname);
++  }
++
+   /* Enable TCP keep-alives on the socket so we time out when
+    * the connection breaks due to network-layer problems.
+    * If the peer has dropped the connection due to a network partition
