@@ -85,6 +85,12 @@ try {
 	const first = state.workingCopies.find((copy) => copy.path === a);
 	const second = state.workingCopies.find((copy) => copy.path === b);
 	await page.getByRole('button', { name: '仓盒应用 trunk · 本地工作副本', exact: false }).first().click();
+	await page.getByRole('textbox', { name: '搜索文件', exact: true }).fill('中文 @');
+	await page.getByRole('button', { name: '设计系统 trunk · 本地工作副本', exact: false }).first().click();
+	assert.equal(await page.getByRole('textbox', { name: '搜索文件', exact: true }).inputValue(), '');
+	await page.getByRole('button', { name: '仓盒应用 trunk · 本地工作副本', exact: false }).first().click();
+	assert.equal(await page.getByRole('textbox', { name: '搜索文件', exact: true }).inputValue(), '中文 @');
+	await page.getByRole('textbox', { name: '搜索文件', exact: true }).fill('');
 	await page.getByRole('button', { name: '中文 @ 文件.ts', exact: false }).first().click();
 	await page.waitForFunction(() => [...document.querySelectorAll('.diff-line code')].some((el) => el.textContent?.includes('version = 2')));
 	await page.locator('.file-pane').focus();
@@ -191,6 +197,7 @@ try {
 	await page.getByRole('tab', { name: '文件', exact: true }).click();
 	await page.waitForFunction(() => document.querySelector('.project-heading h1')?.textContent?.includes('设计系统'));
 	await page.waitForFunction(() => ![...document.querySelectorAll('.file-name')].some((el) => el.textContent?.includes('app.ts')));
+	await page.getByRole('textbox', { name: '搜索文件', exact: true }).fill('README');
 	await instance.close();
 	desktop = await launch();
 	const restored = await call(desktop.page, 'state');
@@ -198,6 +205,8 @@ try {
 	assert.equal(restored.bookmarks.length, 1);
 	assert.equal(restored.sessions[second.id].draft, '设计系统的独立草稿');
 	assert.equal(restored.sessions[first.id].draft, '');
+	assert.equal(restored.sessions[second.id].fileSearch, 'README');
+	assert.equal(await desktop.page.getByRole('textbox', { name: '搜索文件', exact: true }).inputValue(), 'README');
 	await desktop.page.getByRole('button', { name: '仓盒应用 trunk · 本地工作副本', exact: false }).first().click();
 	await desktop.page.getByRole('tab', { name: '文件', exact: true }).click();
 	await desktop.page.getByRole('button', { name: 'README.md', exact: false }).first().click();

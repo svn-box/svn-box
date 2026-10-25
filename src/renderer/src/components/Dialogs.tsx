@@ -1,6 +1,10 @@
+import { isCancelledError, useQuery } from '@tanstack/react-query';
+import { svnQueries } from '../queries/runtime';
+import { workspaceStore } from '../state/workspace';
+import type { WorkspaceCatalog } from '../state/workspace-store';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ChevronRight, Download, Folder, KeyRound, LoaderCircle, Plus, RefreshCw, Server, Settings2, ShieldCheck, Square, Star } from 'lucide-react';
-import type { AppState, Detection, RemoteEntry, Review, RpcMap } from '../../../shared/types';
+import type { AppState, Detection, Review, RpcMap } from '../../../shared/types';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { VirtualList } from './VirtualList';
@@ -48,7 +52,7 @@ export function Modal({
 	);
 }
 
-export function SettingsDialog({ state, onState, onClose }: { state: AppState; onState: (state: AppState) => void; onClose: () => void }) {
+export function SettingsDialog({ state, onState, onClose }: { state: WorkspaceCatalog; onState: (state: AppState) => void; onClose: () => void }) {
 	const [path, setPath] = useState(state.settings.svnPath);
 	const [tool, setTool] = useState(state.settings.mergeTool);
 	const [detection, setDetection] = useState<Detection>();
@@ -150,7 +154,7 @@ export function RemoteDialog({
 	onState,
 	onClose,
 }: {
-	state: AppState;
+	state: WorkspaceCatalog;
 	initialRepositoryId?: string;
 	initialUrl?: string;
 	embedded?: boolean;
@@ -163,7 +167,10 @@ export function RemoteDialog({
 	const [repositoryId, setRepositoryId] = useState(initial?.id ?? '');
 	const [url, setUrl] = useState(initialUrl ?? initial?.rootUrl ?? '');
 	const [loadedUrl, setLoadedUrl] = useState('');
-	const [entries, setEntries] = useState<RemoteEntry[]>([]);
+	const [listOptions, setListOptions] = useState<ReturnType<typeof svnQueries.listOptions>>();
+	const listing = useQuery({ ...(listOptions ?? svnQueries.listOptions('')), enabled: false });
+	const entries = listing.data ?? [];
+	const listingRequest = useRef<ReturnType<typeof svnQueries.listOptions> | undefined>(undefined);
 	const [name, setName] = useState('');
 	const [parent, setParent] = useState('');
 	const [folder, setFolder] = useState('');
@@ -187,6 +194,9 @@ export function RemoteDialog({
 	function stopConnection(showMessage = true) {
 		request.current++;
 		connection.current?.abort();
+		if (listingRequest.current) {
+			void svnQueries.client.cancelQueries({ queryKey: listingRequest.current.queryKey, exact: true });
+		}
 		connection.current = undefined;
 		setBusy(false);
 		setError('');
@@ -223,9 +233,23 @@ export function RemoteDialog({
 		setActiveAction('browse');
 		setError('');
 		try {
-			const result = await api.call('list', { url: target, repositoryId: id || undefined }, { signal: controller.signal, useExistingAuthentication });
+			const options = svnQueries.listOptions(target, id || undefined, workspaceStore.getState().connectionVersion, useExistingAuthentication);
+			listingRequest.current = options;
+			setListOptions(options);
+			await svnQueries.client.cancelQueries({ queryKey: options.queryKey, exact: true });
+			if (controller.signal.aborted) {
+				throw { kind: 'cancelled', message: '连接已停止' };
+			}
+			const abort = () => {
+				void svnQueries.client.cancelQueries({ queryKey: options.queryKey, exact: true });
+			};
+			controller.signal.addEventListener('abort', abort, { once: true });
+			try {
+				await svnQueries.client.fetchQuery({ ...options, staleTime: 0 });
+			} finally {
+				controller.signal.removeEventListener('abort', abort);
+			}
 			if (version === request.current) {
-				setEntries(result);
 				setLoadedUrl(target);
 				onLocationChange?.(target);
 				setUrl(target);
@@ -233,7 +257,7 @@ export function RemoteDialog({
 			}
 		} catch (error) {
 			if (version === request.current) {
-				if ((error as { kind?: string }).kind === 'cancelled') {
+				if ((error as { kind?: string }).kind === 'cancelled' || isCancelledError(error)) {
 					setStopped(true);
 				} else {
 					setError(errorText(error));
@@ -271,7 +295,7 @@ export function RemoteDialog({
 			}
 		} catch (error) {
 			if (version === request.current) {
-				if ((error as { kind?: string }).kind === 'cancelled') {
+				if ((error as { kind?: string }).kind === 'cancelled' || isCancelledError(error)) {
 					setStopped(true);
 				} else {
 					notifyError(error);
@@ -309,7 +333,7 @@ export function RemoteDialog({
 			}
 		} catch (error) {
 			if (version === request.current) {
-				if ((error as { kind?: string }).kind === 'cancelled') {
+				if ((error as { kind?: string }).kind === 'cancelled' || isCancelledError(error)) {
 					setStopped(true);
 				} else {
 					notifyError(error);
@@ -344,7 +368,7 @@ export function RemoteDialog({
 							void browse(repo.rootUrl, id);
 						} else {
 							setUrl('');
-							setEntries([]);
+							setListOptions(undefined);
 							setLoadedUrl('');
 						}
 					}}

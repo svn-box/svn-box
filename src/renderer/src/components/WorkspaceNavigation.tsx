@@ -1,3 +1,4 @@
+import type { WorkspaceCatalog } from '../state/workspace-store';
 import { useRef, useState } from 'react';
 import {
 	ArrowDown,
@@ -41,11 +42,11 @@ export function WorkspaceNavigation({
 	onManage,
 	onRefresh,
 }: {
-	state: AppState;
+	state: WorkspaceCatalog;
 	activeId?: string;
 	activeRepositoryId?: string;
 	activeUrl?: string;
-	operations: Operation[];
+	operations: Pick<Operation, 'id' | 'wcId' | 'state'>[];
 	onState: (state: AppState) => void;
 	onActivate: (id: string) => void;
 	onRemote: (id?: string, url?: string) => void;

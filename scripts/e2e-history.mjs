@@ -208,7 +208,12 @@ setTimeout(() => { const child = spawn(${JSON.stringify(resolve('resources/svn/d
 		{ mode: 0o700 },
 	);
 	await page.getByRole('button', { name: '收起差异预览', exact: true }).click();
-	await call('settings', { svnPath: wrapper });
+	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('svnbox:navigate', 'settings'));
+	const settings = page.getByRole('dialog', { name: '设置', exact: true });
+	await settings.getByLabel('可执行文件路径').fill(wrapper);
+	await settings.getByRole('button', { name: '保存并检测', exact: true }).click();
+	await settings.getByRole('button', { name: '关闭', exact: true }).first().click();
+	await page.waitForSelector('.history-commit');
 	await page.getByRole('button', { name: `查看 r${latest} 本次差异`, exact: true }).click();
 	await page.getByRole('button', { name: '停止读取', exact: true }).click();
 	await page.getByText('已停止读取差异', { exact: true }).waitFor();

@@ -1,10 +1,6 @@
 import { isCancellableRpc, type AppError, type RpcMap, type RpcName } from '../../../shared/types';
 import { requestAuthentication } from './authentication';
-
-interface ClientOptions {
-	signal?: AbortSignal;
-	useExistingAuthentication?: boolean;
-}
+import type { ClientOptions } from './api-types';
 
 const existingConnections = new Set<string>();
 const cancelled = () => ({ kind: 'cancelled', message: '连接已停止' });

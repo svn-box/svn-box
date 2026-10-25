@@ -1,4 +1,6 @@
 import React from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { svnQueries } from './queries/runtime';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { Toaster } from './components/ui/sonner';
@@ -24,8 +26,10 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren, { error: st
 }
 createRoot(document.getElementById('root')!).render(
 	<ErrorBoundary>
-		<App />
-		<AuthenticationHost />
-		<Toaster />
+		<QueryClientProvider client={svnQueries.client}>
+			<App />
+			<AuthenticationHost />
+			<Toaster />
+		</QueryClientProvider>
 	</ErrorBoundary>,
 );

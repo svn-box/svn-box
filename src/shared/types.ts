@@ -35,6 +35,7 @@ export interface WorkspaceSession {
 	draft: string;
 	selected: string[];
 	filter: Filter;
+	fileSearch?: string;
 	expanded: string[];
 	currentPath: string;
 	view: View;

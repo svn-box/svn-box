@@ -33,6 +33,7 @@ export const schemas = {
 				draft: text.max(100000),
 				selected: paths,
 				filter: z.enum(['all', 'modified', 'added', 'deleted', 'unversioned', 'ignored', 'conflicted']),
+				fileSearch: text.optional(),
 				expanded: paths,
 				currentPath: path,
 				view: z.enum(['changes', 'files', 'history']),

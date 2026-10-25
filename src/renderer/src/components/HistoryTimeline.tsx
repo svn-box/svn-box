@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, FileDiff, RefreshCw, Square } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, FileDiff } from 'lucide-react';
 import type { LogEntry, WorkspaceSession } from '../../../shared/types';
-import { api, errorText } from '../lib/api';
+import { HistoryComparison } from './HistoryComparison';
 import { groupHistory, historyRelativePath, type HistoryDay } from '../lib/history';
 import { Button } from './ui/button';
-import { DiffView } from './DiffView';
 import { FileIcon } from './FileIcon';
 
 type ChangedPath = LogEntry['paths'][number];
@@ -18,7 +17,6 @@ type TimelineRow =
 
 const actions: Record<string, string> = { A: '新增', M: '修改', D: '删除', R: '替换' };
 const heights = { day: 32, commit: 54, path: 26, preview: 376, space: 12 };
-const initialDiff = { key: '', text: '', loading: false, error: '', unsupported: '' };
 
 export function HistoryTimeline({
 	entries,
@@ -30,7 +28,10 @@ export function HistoryTimeline({
 	onCompare,
 }: {
 	entries: LogEntry[];
-	session: WorkspaceSession;
+	session: Pick<
+		WorkspaceSession,
+		'historyTarget' | 'historySearch' | 'historyRevision' | 'historyDiffPath' | 'historyCollapsedDates' | 'historyCollapsedRevisions' | 'historyPreviewOpen'
+	>;
 	wcId: string;
 	wcUrl: string;
 	repositoryRoot: string;
@@ -39,11 +40,7 @@ export function HistoryTimeline({
 }) {
 	const viewport = useRef<HTMLDivElement>(null);
 	const [activeKey, setActiveKey] = useState('');
-	const [diff, setDiff] = useState(initialDiff);
-	const [retry, setRetry] = useState(0);
 	const [scrollRequest, setScrollRequest] = useState(0);
-	const [stopped, setStopped] = useState(false);
-	const controller = useRef<AbortController | undefined>(undefined);
 	const pendingScroll = useRef<string | undefined>(undefined);
 	const days = useMemo(() => groupHistory(entries), [entries]);
 	const collapsedDates = useMemo(() => new Set(session.historyCollapsedDates ?? []), [session.historyCollapsedDates]);
@@ -51,7 +48,6 @@ export function HistoryTimeline({
 	const preview = session.historyPreviewOpen ? entries.find((entry) => entry.revision === session.historyRevision) : undefined;
 	const previewVisible = !!preview && !collapsedRevisions.has(preview.revision) && days.some((day) => !collapsedDates.has(day.key) && day.entries.includes(preview));
 	const previewPath = session.historyDiffPath ?? session.historyTarget;
-	const previewKey = previewVisible ? `${wcId}:${preview?.revision}:${previewPath}` : '';
 	const rows = useMemo(() => {
 		const result: TimelineRow[] = [];
 		for (const day of days) {
@@ -91,30 +87,6 @@ export function HistoryTimeline({
 			pendingScroll.current = undefined;
 		}
 	}, [rows, virtual, scrollRequest]);
-
-	useEffect(() => {
-		setStopped(false);
-		if (!previewKey || !preview) {
-			setDiff(initialDiff);
-			return;
-		}
-		const request = new AbortController();
-		controller.current = request;
-		setDiff({ ...initialDiff, key: previewKey, loading: true });
-		void api.call('diff', { wcId, path: previewPath, revision: preview.revision }, { signal: request.signal }).then(
-			(result) => {
-				if (!request.signal.aborted) {
-					setDiff({ key: previewKey, text: result.text, loading: false, error: '', unsupported: result.unsupported ?? '' });
-				}
-			},
-			(error) => {
-				if (!request.signal.aborted) {
-					setDiff({ ...initialDiff, key: previewKey, error: errorText(error) });
-				}
-			},
-		);
-		return () => request.abort();
-	}, [previewKey, retry]);
 
 	function toggleDay(day: HistoryDay) {
 		onChange({ historyCollapsedDates: collapsedDates.has(day.key) ? [...collapsedDates].filter((key) => key !== day.key) : [...collapsedDates, day.key] });
@@ -203,7 +175,6 @@ export function HistoryTimeline({
 				: activeRow?.type === 'path'
 					? `${actions[activeRow.path.action] ?? activeRow.path.action}，${activeRow.path.path}`
 					: '';
-	const currentDiff = diff.key === previewKey ? diff : { ...initialDiff, loading: true };
 
 	return (
 		<>
@@ -308,49 +279,19 @@ export function HistoryTimeline({
 										);
 									})()
 								) : row.type === 'preview' ? (
-									<div className="history-inline-diff" data-revision={row.entry.revision}>
-										<div className="history-diff-context">
-											<span className="truncate" title={previewPath}>
-												r{row.entry.revision - 1} → r{row.entry.revision} · {previewPath === '.' ? '当前工作副本范围' : previewPath}
-											</span>
-											{diff.loading ? (
-												<Button
-													variant="ghost"
-													size="sm"
-													onClick={() => {
-														controller.current?.abort();
-														setDiff({ ...initialDiff, key: previewKey });
-														setStopped(true);
-													}}
-												>
-													<Square />
-													停止读取
-												</Button>
-											) : (
-												(stopped || !!diff.error) && (
-													<Button variant="ghost" size="sm" onClick={() => setRetry((value) => value + 1)}>
-														<RefreshCw />
-														重新读取
-													</Button>
-												)
-											)}
-										</div>
-										<DiffView
-											text={currentDiff.text}
-											loading={currentDiff.loading}
-											unsupported={currentDiff.unsupported}
-											revision={row.entry.revision}
-											error={stopped ? '已停止读取差异' : currentDiff.error}
-											title={previewPath === session.historyTarget ? '本次提交差异' : previewPath}
-											onClose={() => closePreview(row.entry.revision)}
-											onCompare={
-												previewPath !== '.' &&
-												row.entry.paths.some((path) => path.kind !== 'dir' && historyRelativePath(path.path, wcUrl, repositoryRoot) === previewPath)
-													? () => onCompare(previewPath, row.entry.revision)
-													: undefined
-											}
-										/>
-									</div>
+									<HistoryComparison
+										wcId={wcId}
+										revision={row.entry.revision}
+										path={previewPath}
+										wholeCommit={previewPath === session.historyTarget}
+										onClose={() => closePreview(row.entry.revision)}
+										onCompare={
+											previewPath !== '.' &&
+											row.entry.paths.some((path) => path.kind !== 'dir' && historyRelativePath(path.path, wcUrl, repositoryRoot) === previewPath)
+												? () => onCompare(previewPath, row.entry.revision)
+												: undefined
+										}
+									/>
 								) : null}
 							</div>
 						);

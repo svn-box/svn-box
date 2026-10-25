@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Clock3, LoaderCircle, ShieldCheck } from 'lucide-react';
-import type { FileStatus, WorkingCopy, WorkspaceSession } from '../../../shared/types';
-import { api, errorText } from '../lib/api';
+import type { FileStatus, WorkingCopy } from '../../../shared/types';
+import { useDiff } from '../queries/hooks';
+import { workspaceStore, useWorkspaceSession, useWorkspaceStore } from '../state/workspace';
 import { Modal } from './Dialogs';
 import { Button } from './ui/button';
 import { Combobox } from './ui/combobox';
@@ -11,53 +12,29 @@ import { FileIcon } from './FileIcon';
 
 export function CommitPanel({
 	copy,
-	session,
 	files,
 	recentMessages,
 	blocked,
 	busy,
 	scannedAt,
-	onPatch,
 	onReview,
 	onClose,
 }: {
 	copy: WorkingCopy;
-	session: WorkspaceSession;
 	files: FileStatus[];
 	recentMessages: string[];
 	blocked: number;
 	busy: boolean;
 	scannedAt?: string;
-	onPatch: (patch: Partial<WorkspaceSession>) => void;
 	onReview: (paths: string[]) => void;
 	onClose: () => void;
 }) {
+	const session = useWorkspaceSession(copy.id);
+	const save = useWorkspaceStore((state) => state.sessionWrites[copy.id]);
+	const onPatch = (patch: Partial<typeof session>) => workspaceStore.getState().patchSession(patch, copy.id);
 	const [preview, setPreview] = useState(files.some((file) => file.path === session.currentPath) ? session.currentPath : (files[0]?.path ?? ''));
-	const [diff, setDiff] = useState({ text: '', loading: false, error: '', unsupported: '' });
+	const diff = useDiff(copy.id, preview, scannedAt);
 	const selected = files.filter((file) => session.selected.includes(file.path));
-	useEffect(() => {
-		let current = true;
-		if (!preview) {
-			setDiff({ text: '', loading: false, error: '', unsupported: '' });
-			return;
-		}
-		setDiff({ text: '', loading: true, error: '', unsupported: '' });
-		void api
-			.call('diff', { wcId: copy.id, path: preview })
-			.then((result) => {
-				if (current) {
-					setDiff({ text: result.text, unsupported: result.unsupported ?? '', loading: false, error: '' });
-				}
-			})
-			.catch((error) => {
-				if (current) {
-					setDiff({ text: '', loading: false, unsupported: '', error: errorText(error) });
-				}
-			});
-		return () => {
-			current = false;
-		};
-	}, [copy.id, preview, scannedAt]);
 
 	function toggle(path: string) {
 		onPatch({ selected: session.selected.includes(path) ? session.selected.filter((item) => item !== path) : [...session.selected, path] });
@@ -118,7 +95,7 @@ export function CommitPanel({
 					</div>
 					<div className="draft-save">
 						<ShieldCheck size={12} />
-						草稿已自动保存 · 仅属于此工作副本
+						{save?.error ? '草稿保存失败，内容仍保留在当前窗口' : save?.pending ? '正在保存…' : '草稿已自动保存 · 仅属于此工作副本'}
 					</div>
 				</div>
 			</div>
