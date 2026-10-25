@@ -157,7 +157,7 @@ kbd {
 }
 .button-primary {
 	background: var(--accent-strong);
-	color: #fff;
+	color: var(--on-accent);
 	box-shadow:
 		inset 0 1px 0 #ffffff15,
 		0 1px 2px #0000000a;
@@ -1643,7 +1643,7 @@ kbd {
 }
 .dropdown-item[data-highlighted] {
 	background: var(--accent-strong);
-	color: white;
+	color: var(--on-accent);
 }
 .dropdown-item:focus-visible {
 	outline: none;

@@ -17,10 +17,10 @@ const svn = (...args) => execFileSync('/opt/homebrew/bin/svn', args, { encoding:
 const choices = [
 	['light', '白色', false],
 	['dark', '灰色', true],
-	['ocean', '海湾蓝', false],
-	['mint', '薄荷绿', false],
-	['iris', '鸢尾紫', true],
-	['sunset', '落日橙', false],
+	['ocean', '墨蓝', false],
+	['mint', '松绿', false],
+	['iris', '茄紫', true],
+	['sunset', '铜橙', false],
 ];
 const checks = [];
 const errors = [];
@@ -95,6 +95,31 @@ try {
 		await dialog.screenshot({ path: join(output, `theme-${id}-picker.png`), animations: 'disabled' });
 		const previewColors = await dialog.locator('.theme-preview').evaluateAll((elements) => elements.map((element) => getComputedStyle(element).backgroundColor));
 		assert.equal(new Set(previewColors).size, 6, '每张卡片在任一主题下显示自己的配色');
+		const sidebarPalette = await page.locator('.sidebar').evaluate((element) => {
+			const style = getComputedStyle(element);
+			return { scheme: style.colorScheme, background: style.getPropertyValue('--sidebar').trim() };
+		});
+		assert.equal(sidebarPalette.scheme, id === 'light' ? 'light' : 'dark');
+		assert.equal(
+			await page.locator('.sidebar').evaluate((element) => {
+				const probe = document.createElement('span');
+				probe.style.color = 'var(--text)';
+				element.append(probe);
+				const expected = getComputedStyle(probe).color;
+				probe.remove();
+				return [...element.querySelectorAll('.nav-copy-main strong')].every((label) => getComputedStyle(label).color === expected);
+			}),
+			true,
+			'深色导航上的项目名称必须使用该表面的文字色',
+		);
+
+		const thumbnail = dialog.locator(`.theme-preview[data-theme="${id}"] .theme-preview-sidebar`);
+		assert.equal(
+			await thumbnail.evaluate((element) => getComputedStyle(element).getPropertyValue('--sidebar').trim()),
+			sidebarPalette.background,
+			'缩略导航与实际分栏使用同一配色',
+		);
+
 		await page.emulateMedia({ contrast: 'more' });
 		assert.equal(
 			await page.evaluate(() => {
@@ -104,10 +129,19 @@ try {
 			true,
 			'提高对比度适用于每套主题',
 		);
+		assert.equal(
+			await page.locator('.sidebar').evaluate((element) => {
+				const style = getComputedStyle(element);
+				return style.getPropertyValue('--border').trim() === style.getPropertyValue('--border-input').trim();
+			}),
+			true,
+			'提高对比度也覆盖独立的导航材质',
+		);
 		await page.emulateMedia({ contrast: 'no-preference' });
-		const before = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sidebar'));
+		const before = await page.locator('.sidebar').evaluate((element) => getComputedStyle(element).getPropertyValue('--sidebar'));
+		const rootBefore = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg'));
 		await page.emulateMedia({ colorScheme: dark ? 'light' : 'dark' });
-		assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sidebar')), before, '系统外观不覆盖用户的配色');
+		assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg')), rootBefore, '系统外观不覆盖用户的配色');
 		const geometry = await dialog.evaluate((element) => {
 			const panel = element.querySelector('.settings-page');
 			const cards = [...element.querySelectorAll('.settings-themes > button')].map((card) => card.getBoundingClientRect());
@@ -133,8 +167,8 @@ try {
 	await settings();
 	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1000, 680));
 	assert.equal(await page.locator('.settings-page').evaluate((element) => element.scrollWidth > element.clientWidth), false);
-	await page.getByRole('button', { name: '鸢尾紫', exact: true }).scrollIntoViewIfNeeded();
-	await page.getByRole('button', { name: '鸢尾紫', exact: true }).focus();
+	await page.getByRole('button', { name: '茄紫', exact: true }).scrollIntoViewIfNeeded();
+	await page.getByRole('button', { name: '茄紫', exact: true }).focus();
 	await page.keyboard.press('Enter');
 	await page.waitForFunction(() => document.documentElement.dataset.theme === 'iris');
 	await screenshot('theme-small-window.png');
@@ -146,7 +180,7 @@ try {
 	assert.equal(state.settings.theme, 'iris');
 	assert.equal(state.sessions[copy.id].draft, '切换主题仍保留的提交说明');
 	await settings();
-	assert.equal(await page.getByRole('button', { name: '鸢尾紫', exact: true }).getAttribute('aria-pressed'), 'true');
+	assert.equal(await page.getByRole('button', { name: '茄紫', exact: true }).getAttribute('aria-pressed'), 'true');
 	checks.push('Toast、小窗口、键盘选择主题、重启保留主题和副本草稿');
 	await instance.close();
 	instance = undefined;

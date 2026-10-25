@@ -42,33 +42,34 @@ describe('外观主题', () => {
 	it('正文、次级文字、状态、焦点和按钮在各主题主要表面达到 AA 对比度', () => {
 		const backgrounds = ['bg', 'canvas', 'sidebar', 'chrome', 'surface', 'raised', 'selected', 'hover', 'menu-surface'] as const;
 		for (const theme of themes) {
-			const colors = theme.colors;
-			for (const foreground of ['text', 'muted', 'accent', 'danger', 'green', 'warning'] as const) {
-				for (const background of backgrounds) {
-					expect(contrast(colors[foreground], colors[background]), `${theme.id}: ${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
-				}
-			}
-			for (const desktop of [0, 255]) {
-				const sidebar =
-					'#' +
-					colors.sidebar
-						.slice(1)
-						.match(/../g)!
-						.map((value) =>
-							Math.round(parseInt(value, 16) * 0.94 + desktop * 0.06)
-								.toString(16)
-								.padStart(2, '0'),
-						)
-						.join('');
+			for (const colors of [theme.colors, ...(theme.navigation ? [theme.navigation.colors] : [])]) {
 				for (const foreground of ['text', 'muted', 'accent', 'danger', 'green', 'warning'] as const) {
-					expect(contrast(colors[foreground], sidebar), `${theme.id} native sidebar: ${foreground}`).toBeGreaterThanOrEqual(4.5);
+					for (const background of backgrounds) {
+						expect(contrast(colors[foreground], colors[background]), `${theme.id}: ${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
+					}
 				}
-			}
-			expect(contrast(colors['on-accent'], colors['accent-strong']), `${theme.id} primary button`).toBeGreaterThanOrEqual(4.5);
-			expect(contrast(colors.green, colors['diff-added']), `${theme.id} added Diff`).toBeGreaterThanOrEqual(4.5);
-			expect(contrast(colors.danger, colors['diff-deleted']), `${theme.id} deleted Diff`).toBeGreaterThanOrEqual(4.5);
-			for (const background of ['input', 'canvas', 'chrome'] as const) {
-				expect(contrast(colors['border-input'], colors[background]), `${theme.id} input/focus border`).toBeGreaterThanOrEqual(3);
+				for (const desktop of [0, 255]) {
+					const sidebar =
+						'#' +
+						colors.sidebar
+							.slice(1)
+							.match(/../g)!
+							.map((value) =>
+								Math.round(parseInt(value, 16) * 0.94 + desktop * 0.06)
+									.toString(16)
+									.padStart(2, '0'),
+							)
+							.join('');
+					for (const foreground of ['text', 'muted', 'accent', 'danger', 'green', 'warning'] as const) {
+						expect(contrast(colors[foreground], sidebar), `${theme.id} native sidebar: ${foreground}`).toBeGreaterThanOrEqual(4.5);
+					}
+				}
+				expect(contrast(colors['on-accent'], colors['accent-strong']), `${theme.id} primary button`).toBeGreaterThanOrEqual(4.5);
+				expect(contrast(colors.green, colors['diff-added']), `${theme.id} added Diff`).toBeGreaterThanOrEqual(4.5);
+				expect(contrast(colors.danger, colors['diff-deleted']), `${theme.id} deleted Diff`).toBeGreaterThanOrEqual(4.5);
+				for (const background of ['input', 'canvas', 'chrome'] as const) {
+					expect(contrast(colors['border-input'], colors[background]), `${theme.id} input/focus border`).toBeGreaterThanOrEqual(3);
+				}
 			}
 		}
 	});

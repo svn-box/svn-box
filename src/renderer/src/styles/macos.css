@@ -809,3 +809,20 @@ select {
 		--border: var(--border-input);
 	}
 }
+
+::selection {
+	color: var(--on-accent);
+	background: var(--accent-strong);
+}
+
+input,
+textarea,
+[contenteditable='true'] {
+	caret-color: var(--accent);
+}
+
+@media (prefers-contrast: more) {
+	:root[data-theme] :is(.sidebar, .titlebar-sidebar) {
+		--border: var(--border-input);
+	}
+}

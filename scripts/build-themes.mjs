@@ -26,7 +26,11 @@ const styles =
 		`:root {\n${declarations(layout)}\n}`,
 		...themes.map((theme) => {
 			const selector = theme.id === 'light' ? ':root' : theme.id === 'dark' ? ':root.dark' : `:root[data-theme='${theme.id}']`;
-			return `${selector},\n.theme-preview[data-theme='${theme.id}'] {\n\tcolor-scheme: ${theme.scheme};\n${declarations(theme.colors)}\n}`;
+			const surface = `${selector},\n.theme-preview[data-theme='${theme.id}'] {\n\tcolor-scheme: ${theme.scheme};\n${declarations(theme.colors)}\n}`;
+			const navigation = theme.navigation;
+			return navigation
+				? `${surface}\n\n${selector} :is(.sidebar, .titlebar-sidebar),\n.theme-preview[data-theme='${theme.id}'] .theme-preview-sidebar {\n\tcolor-scheme: ${navigation.scheme};\n${declarations(navigation.colors)}\n\tcolor: var(--text);\n}`
+				: surface;
 		}),
 	].join('\n\n') + '\n';
 const formatted = await format(styles, { ...(await resolveConfig(fileURLToPath(new URL('../.prettierrc.json', import.meta.url)))), parser: 'css' });
@@ -38,30 +42,35 @@ if (process.argv.includes('--design')) {
 	const pairs = ['text', 'muted', 'accent', 'danger', 'green', 'warning'].flatMap((fg) => backgrounds.map((bg) => [fg, bg]));
 	pairs.push(['on-accent', 'accent-strong'], ['green', 'diff-added'], ['danger', 'diff-deleted']);
 	for (const theme of themes) {
-		const blended = Object.fromEntries(
-			[0, 255].map((desktop) => [
-				`sidebar-material-${desktop}`,
-				'#' +
-					theme.colors.sidebar
-						.slice(1)
-						.match(/../g)
-						.map((value) =>
-							Math.round(parseInt(value, 16) * 0.94 + desktop * 0.06)
-								.toString(16)
-								.padStart(2, '0'),
-						)
-						.join(''),
-			]),
-		);
-		const materialPairs = ['text', 'muted', 'accent', 'danger', 'green', 'warning'].flatMap((foreground) => Object.keys(blended).map((background) => [foreground, background]));
-		await writeFile(
-			new URL(`../replica/design/themes/${theme.id}.json`, import.meta.url),
-			JSON.stringify(
-				{ color: { ...theme.colors, ...blended }, pairs: [...pairs, ...materialPairs, ...['input', 'canvas', 'chrome'].map((bg) => ['border-input', bg, 'ui'])] },
-				null,
-				2,
-			) + '\n',
-		);
+		const surfaces = [[theme.id, theme.colors], ...(theme.navigation ? [[`${theme.id}-navigation`, theme.navigation.colors]] : [])];
+		for (const [name, colors] of surfaces) {
+			const blended = Object.fromEntries(
+				[0, 255].map((desktop) => [
+					`sidebar-material-${desktop}`,
+					'#' +
+						colors.sidebar
+							.slice(1)
+							.match(/../g)
+							.map((value) =>
+								Math.round(parseInt(value, 16) * 0.94 + desktop * 0.06)
+									.toString(16)
+									.padStart(2, '0'),
+							)
+							.join(''),
+				]),
+			);
+			const materialPairs = ['text', 'muted', 'accent', 'danger', 'green', 'warning'].flatMap((foreground) =>
+				Object.keys(blended).map((background) => [foreground, background]),
+			);
+			await writeFile(
+				new URL(`../replica/design/themes/${name}.json`, import.meta.url),
+				JSON.stringify(
+					{ color: { ...colors, ...blended }, pairs: [...pairs, ...materialPairs, ...['input', 'canvas', 'chrome'].map((bg) => ['border-input', bg, 'ui'])] },
+					null,
+					2,
+				) + '\n',
+			);
+		}
 	}
 	for (const [name, id] of [
 		['tokens.json', 'light'],
