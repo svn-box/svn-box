@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Fragment } from 'react';
 import { CircleAlert, Folder, History, Info, LoaderCircle, X } from 'lucide-react';
 import { isConflict, type Action, type WorkingCopy, type WorkspaceSession } from '../../../shared/types';
@@ -10,15 +11,18 @@ import { FileIcon } from './FileIcon';
 import { fmtDate, leaf, StatusBadge } from './file-presentation';
 
 export function DetailsPanel({ wc, requestReview, refresh }: { wc: WorkingCopy; requestReview: (action: Action, paths: string[]) => unknown; refresh: (id: string) => unknown }) {
+	const { t } = useTranslation();
 	const session = useSessionSlice(wc.id, ['view']);
 	const detailsWidth = useWorkspaceStore((state) => state.detailsWidth);
+
 	const setShowDetails = (value: boolean) => workspaceStore.getState().setPanel('showDetails', value);
+
 	return (
 		<aside className="details-panel" style={{ width: detailsWidth }}>
 			<div className="details-title">
 				<Info size={13} />
-				{session.view === 'history' ? '提交详情' : '文件详情'}
-				<button aria-label="收起详情" onClick={() => setShowDetails(false)}>
+				{session.view === 'history' ? t('detailsPanel.commitDetails') : t('detailsPanel.fileDetails')}
+				<button aria-label={t('detailsPanel.collapseInspector')} onClick={() => setShowDetails(false)}>
 					<X size={13} />
 				</button>
 			</div>
@@ -28,6 +32,7 @@ export function DetailsPanel({ wc, requestReview, refresh }: { wc: WorkingCopy; 
 }
 
 function HistoryDetails({ wcId }: { wcId: string }) {
+	const { t } = useTranslation();
 	const session = useSessionSlice(wcId, ['historyTarget', 'historySearch', 'historyRevision']);
 	const { filteredLogs } = useHistoryEntries(wcId, session.historyTarget, session.historySearch ?? '');
 	const selectedLog = filteredLogs.find((entry) => entry.revision === session.historyRevision);
@@ -40,24 +45,28 @@ function HistoryDetails({ wcId }: { wcId: string }) {
 				<div className="detail-file-icon">
 					<History size={27} />
 				</div>
-				<h2>版本 r{selectedLog.revision}</h2>
-				<p className="detail-subtitle">{selectedLog.author || '未知作者'}</p>
+				<h2>
+					{t('detailsPanel.revisionR', {
+						revision: selectedLog.revision,
+					})}
+				</h2>
+				<p className="detail-subtitle">{selectedLog.author || t('detailsPanel.unknownAuthor')}</p>
 			</div>
 			<dl>
-				<dt>提交日期</dt>
+				<dt>{t('detailsPanel.commitDate')}</dt>
 				<dd>{fmtDate(selectedLog.date)}</dd>
 			</dl>
-			<div className="detail-section-title">提交说明</div>
-			<pre className="commit-message">{selectedLog.message || '（无提交说明）'}</pre>
-			<div className="detail-section-title">变更范围</div>
+			<div className="detail-section-title">{t('commitPanel.commitMessage')}</div>
+			<pre className="commit-message">{selectedLog.message || t('detailsPanel.noCommitMessage')}</pre>
+			<div className="detail-section-title">{t('detailsPanel.changedScope')}</div>
 			<dl>
-				<dt>全部路径</dt>
+				<dt>{t('detailsPanel.allPaths')}</dt>
 				<dd>{selectedLog.paths.length}</dd>
 				{[
-					['A', '新增'],
-					['M', '修改'],
-					['D', '删除'],
-					['R', '替换'],
+					['A', t('common.added')],
+					['M', t('common.modified')],
+					['D', t('common.deleted')],
+					['R', t('common.replaced')],
 				].map(([action, label]) => (
 					<Fragment key={action}>
 						<dt>{label}</dt>
@@ -70,8 +79,11 @@ function HistoryDetails({ wcId }: { wcId: string }) {
 }
 
 function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestReview: (action: Action, paths: string[]) => unknown; refresh: (id: string) => unknown }) {
+	const { t } = useTranslation();
 	const session = useSessionSlice(wc.id, ['currentPath']);
+
 	const patchSession = (patch: Partial<WorkspaceSession>) => workspaceStore.getState().patchSession(patch, wc.id);
+
 	const showError = notifyError;
 	const snapshot = useStatus(wc.id).data;
 	const currentFile = snapshot?.files.find((file) => file.path === session.currentPath);
@@ -86,42 +98,42 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 					<FileIcon path={session.currentPath} kind={currentFile?.kind} size={40} />
 				</div>
 				<h2>{session.currentPath === '.' ? wc.name : leaf(session.currentPath)}</h2>
-				<p className="detail-subtitle">{currentFile ? <StatusBadge file={currentFile} /> : '状态待刷新'}</p>
+				<p className="detail-subtitle">{currentFile ? <StatusBadge file={currentFile} /> : t('detailsPanel.refreshStatusFirst')}</p>
 			</div>
-			<div className="detail-section-title">文件信息</div>
+			<div className="detail-section-title">{t('detailsPanel.fileInformation')}</div>
 			{fileInfo.loading && (
 				<div className="details-loading">
 					<LoaderCircle className="spin" size={13} />
-					读取 SVN 信息…
+					{t('detailsPanel.readingSvnInformation')}
 				</div>
 			)}
 			<dl>
-				<dt>相对路径</dt>
+				<dt>{t('detailsPanel.relativePath')}</dt>
 				<dd className="break-all">{session.currentPath}</dd>
-				<dt>版本</dt>
+				<dt>{t('detailsPanel.revision')}</dt>
 				<dd className="mono">{fileInfo.info?.revision ? `r${fileInfo.info.revision}` : currentFile?.revision || '—'}</dd>
-				<dt>最后作者</dt>
+				<dt>{t('detailsPanel.lastAuthor')}</dt>
 				<dd>{currentFile?.author || '—'}</dd>
-				<dt>最后修改</dt>
+				<dt>{t('detailsPanel.lastModified')}</dt>
 				<dd>{fmtDate(currentFile?.date)}</dd>
-				<dt>文件类型</dt>
-				<dd>{currentFile?.kind === 'dir' ? '目录' : currentFile?.kind === 'symlink' ? '符号链接' : '文件'}</dd>
+				<dt>{t('detailsPanel.fileType')}</dt>
+				<dd>{currentFile?.kind === 'dir' ? t('detailsPanel.directory') : currentFile?.kind === 'symlink' ? t('detailsPanel.symbolicLink') : t('common.file')}</dd>
 				{currentFile?.movedFrom && (
 					<>
-						<dt>移动来源</dt>
+						<dt>{t('detailsPanel.movedFrom')}</dt>
 						<dd>{currentFile.movedFrom}</dd>
 					</>
 				)}
 				{currentFile?.movedTo && (
 					<>
-						<dt>移动目标</dt>
+						<dt>{t('detailsPanel.movedTo')}</dt>
 						<dd>{currentFile.movedTo}</dd>
 					</>
 				)}
 			</dl>
 			{fileInfo.info?.url && (
 				<details className="detail-repository">
-					<summary>仓库 URL</summary>
+					<summary>{t('detailsPanel.repositoryUrl')}</summary>
 					<p className="break-all">{fileInfo.info.url}</p>
 				</details>
 			)}
@@ -129,14 +141,14 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 				<div className="conflict-box">
 					<strong>
 						<CircleAlert size={14} />
-						冲突需要处理
+						{t('detailsPanel.conflictsNeedAttention')}
 					</strong>
 					<p>
 						{currentFile.treeConflicted
-							? '树冲突：请核实删除、移动与上游目录结构。'
+							? t('detailsPanel.treeConflictVerifyDeletionsMovesAndTheUpstream')
 							: currentFile.props === 'conflicted'
-								? '属性冲突：请检查并手动修正冲突属性。'
-								: '文本冲突：请在外部工具中合并并保存。'}
+								? t('detailsPanel.propertyConflictInspectAndManuallyCorrectTheConflicting')
+								: t('detailsPanel.textConflictMergeAndSaveTheFileIn')}
 					</p>
 					{fileInfo.info?.conflicts.length ? <pre>{JSON.stringify(fileInfo.info.conflicts, null, 2)}</pre> : null}
 					<Button
@@ -146,18 +158,19 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 							void api.call('system', { wcId: wc.id, path: session.currentPath, action: 'merge' }).catch(showError);
 						}}
 					>
-						打开合并工具
+						{t('detailsPanel.openMergeTool')}
 					</Button>
 					<Button variant="outline" size="sm" onClick={() => void refresh(wc.id)}>
-						检查解决结果
+						{t('workspace.checkResolution')}
 					</Button>
 					<Button size="sm" variant="outline" onClick={() => void requestReview('resolve', [session.currentPath])}>
-						标记已解决…
+						{t('detailsPanel.markResolved')}
 					</Button>
 				</div>
 			)}
 			<div className="detail-section-title">
-				SVN 属性<span>{fileInfo.properties?.length ?? '—'}</span>
+				{t('detailsPanel.svnProperties')}
+				<span>{fileInfo.properties?.length ?? '—'}</span>
 			</div>
 			{fileInfo.properties?.length ? (
 				fileInfo.properties.map((property) => (
@@ -167,11 +180,17 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 					</div>
 				))
 			) : (
-				<p className="detail-empty">{fileInfo.loading ? '正在读取…' : fileInfo.error ? '此路径暂无可读取的 SVN 属性' : '未设置自定义属性'}</p>
+				<p className="detail-empty">
+					{fileInfo.loading
+						? t('detailsPanel.reading')
+						: fileInfo.error
+							? t('detailsPanel.noSvnPropertiesAreAvailableForThisPath')
+							: t('detailsPanel.noCustomPropertiesSet')}
+				</p>
 			)}
 			{fileInfo.error && (
 				<details className="detail-error">
-					<summary>查看读取信息</summary>
+					<summary>{t('detailsPanel.viewReadDetails')}</summary>
 					<pre>{fileInfo.error}</pre>
 				</details>
 			)}
@@ -183,7 +202,8 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 						void api.call('system', { wcId: wc.id, path: session.currentPath, action: 'reveal' }).catch(showError);
 					}}
 				>
-					<Folder />在 Finder 中显示
+					<Folder />
+					{t('workspace.revealInFinder')}
 				</Button>
 				<Button
 					variant="ghost"
@@ -198,7 +218,7 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 					}
 				>
 					<History />
-					查看历史
+					{t('detailsPanel.showHistory')}
 				</Button>
 			</div>
 		</>
@@ -206,12 +226,16 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 }
 
 function DetailsEmpty({ history = false }: { history?: boolean }) {
+	const { t } = useTranslation();
 	return (
 		<div className="details-empty">
 			<Info size={27} />
-			<strong>{history ? '未选择提交' : '未选择文件'}</strong>
+			<strong>{history ? t('detailsPanel.noCommitSelected') : t('detailsPanel.noFileSelected')}</strong>
 			<p>
-				选择{history ? '一条提交记录' : '文件或目录'}查看{history ? '说明及变更路径' : '状态、版本与 SVN 属性'}
+				{t('detailsPanel.selectToSee', {
+					value: history ? t('detailsPanel.aCommit') : t('detailsPanel.aFileOrDirectory'),
+					value2: history ? t('detailsPanel.itsMessageAndChangedPaths') : t('detailsPanel.itsStatusRevisionAndSvnProperties'),
+				})}
 			</p>
 		</div>
 	);

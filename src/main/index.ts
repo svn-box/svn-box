@@ -1,3 +1,4 @@
+import { translate, uiI18n, UI_LANGUAGE } from '../shared/i18n';
 import { app, BrowserWindow, ipcMain, dialog, shell, clipboard, safeStorage, Menu, nativeTheme, autoUpdater as nativeAutoUpdater } from 'electron';
 import electronUpdater from 'electron-updater';
 import { spawn, execFile } from 'node:child_process';
@@ -7,13 +8,12 @@ import { pathToFileURL } from 'node:url';
 import { schemas, requestOptionsSchema } from '../shared/validation';
 import type { RpcName, RpcMap, Reply, AppError } from '../shared/types';
 import { getTheme } from '../shared/themes';
-import { operationOutput, operationLabels } from '../shared/operation-log';
+import { operationOutput, operationLabels, operationLabel } from '../shared/operation-log';
 import { appReleasesUrl } from '../shared/app-updates';
 import { AppUpdates } from './app-updates';
 import { SvnService, type Vault } from './service';
 import { Store } from './store';
 import { Runner, SvnError } from './runner';
-
 const currentDirectory = __dirname;
 if (process.env.SVNBOX_DATA_DIR) {
 	app.setPath('userData', process.env.SVNBOX_DATA_DIR);
@@ -54,14 +54,14 @@ class SecureVault implements Vault {
 			return undefined;
 		}
 		if (!safeStorage.isEncryptionAvailable()) {
-			throw new Error('macOS 安全存储当前不可用');
+			throw new Error(translate('desktop.macosSecureStorageIsUnavailable'));
 		}
 		return safeStorage.decryptString(Buffer.from(data[id], 'base64'));
 	}
 
 	async set(id: string, password: string): Promise<void> {
 		if (!safeStorage.isEncryptionAvailable()) {
-			throw new Error('macOS 安全存储不可用，密码未保存');
+			throw new Error(translate('desktop.macosSecureStorageIsUnavailableThePasswordWas'));
 		}
 		const encrypted = safeStorage.encryptString(password).toString('base64');
 		await this.change((data) => {
@@ -117,7 +117,10 @@ async function system(input: RpcMap['system']['input']): Promise<void> {
 	}
 	const info = await lstat(target);
 	if (info.isSymbolicLink() && input.action === 'merge') {
-		throw new SvnError({ kind: 'validation', message: '符号链接请在终端中核实目标后处理' });
+		throw new SvnError({
+			kind: 'validation',
+			message: translate('desktop.verifyTheSymbolicLinkTargetInTerminalBefore'),
+		});
 	}
 	const folder = info.isDirectory() ? target : dirname(target);
 	if (input.action === 'terminal') {
@@ -126,7 +129,10 @@ async function system(input: RpcMap['system']['input']): Promise<void> {
 	}
 	const tool = service.store.get().settings.mergeTool;
 	if (!tool || !isAbsolute(tool)) {
-		throw new SvnError({ kind: 'validation', message: '请先在设置中指定外部合并工具的 .app 或可执行文件绝对路径' });
+		throw new SvnError({
+			kind: 'validation',
+			message: translate('desktop.setAnAbsolutePathToYourExternalMerge'),
+		});
 	}
 	if (extname(tool).toLowerCase() === '.app') {
 		await runExternal('/usr/bin/open', ['-a', tool, target]);
@@ -145,7 +151,17 @@ async function runExternal(executable: string, args: string[], detached = false)
 				resolve();
 			});
 		} else {
-			child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`外部程序退出码 ${code}`))));
+			child.on('close', (code) =>
+				code === 0
+					? resolve()
+					: reject(
+							new Error(
+								translate('desktop.externalToolExitedWithCode', {
+									code: code,
+								}),
+							),
+						),
+			);
 		}
 	});
 }
@@ -160,14 +176,14 @@ function registerIpc(): void {
 				event.senderFrame !== window.webContents.mainFrame ||
 				(event.senderFrame.url.split('#')[0] !== expectedUrl.replace(/\/$/, '') && event.senderFrame.url.split('#')[0] !== `${expectedUrl.replace(/\/$/, '')}/`)
 			) {
-				throw new Error('IPC 来源校验失败');
+				throw new Error(translate('desktop.ipcOriginValidationFailed'));
 			}
 			if (!Object.hasOwn(schemas, method)) {
-				throw new Error('不支持的操作');
+				throw new Error(translate('desktop.unsupportedOperation'));
 			}
 			const data: any = schemas[method].parse(input);
 			if (installingUpdate && method !== 'appUpdate') {
-				throw new Error('应用正在准备重新启动，请稍候。');
+				throw new Error(translate('desktop.theAppIsPreparingToRestartPleaseWait'));
 			}
 			const request = requestOptionsSchema.parse(options ?? {});
 			const value = await service.withRequest(request.requestId, method, async () => {
@@ -190,10 +206,18 @@ function registerIpc(): void {
 						break;
 					case 'settings':
 						value = await service.settings(data);
+						if (data.language) {
+							await uiI18n.changeLanguage(data.language);
+							refreshApplicationMenu();
+							window?.webContents.send('svnbox:language', data.language);
+						}
 						nativeTheme.themeSource = getTheme(service.store.get().settings.theme).scheme;
 						break;
 					case 'pickFolder': {
-						const selected = await dialog.showOpenDialog(window!, { title: '选择文件夹', properties: ['openDirectory', 'createDirectory'] });
+						const selected = await dialog.showOpenDialog(window!, {
+							title: translate('desktop.chooseAFolder'),
+							properties: ['openDirectory', 'createDirectory'],
+						});
 						value = selected.canceled ? null : selected.filePaths[0];
 						break;
 					}
@@ -210,7 +234,12 @@ function registerIpc(): void {
 						const tool = await new Promise<string>((resolve, reject) => {
 							execFile('/usr/bin/xcrun', ['--find', 'opendiff'], (error, stdout) => {
 								if (error) {
-									reject(new SvnError({ kind: 'path', message: '未找到 FileMerge，请安装 Xcode 并选择开发者工具路径' }));
+									reject(
+										new SvnError({
+											kind: 'path',
+											message: translate('desktop.filemergeWasNotFoundInstallXcodeAndSelect'),
+										}),
+									);
 								} else {
 									resolve(stdout.trim());
 								}
@@ -229,7 +258,7 @@ function registerIpc(): void {
 					case 'activate':
 						await service.store.change((state) => {
 							if (!state.workingCopies.some((copy) => copy.id === data.wcId)) {
-								throw new Error('工作副本不存在');
+								throw new Error(translate('desktop.workingCopyNotFound'));
 							}
 							state.activeId = data.wcId;
 						});
@@ -267,12 +296,15 @@ function registerIpc(): void {
 					case 'copyOperation': {
 						const operation = service.getOperations().find((entry) => entry.id === data.id);
 						if (!operation) {
-							throw new SvnError({ kind: 'stale', message: '日志已移除，请选择其他记录' });
+							throw new SvnError({
+								kind: 'stale',
+								message: translate('desktop.thisLogWasRemovedSelectAnotherRecord'),
+							});
 						}
-						const project = service.store.get().workingCopies.find((copy) => copy.id === operation.wcId)?.name ?? '远端仓库';
+						const project = service.store.get().workingCopies.find((copy) => copy.id === operation.wcId)?.name ?? translate('common.remoteRepository');
 						clipboard.writeText(
 							[
-								operation.label,
+								operationLabel(operation),
 								project,
 								operationLabels[operation.state],
 								operation.startedAt,
@@ -323,7 +355,7 @@ async function createWindow(): Promise<void> {
 		height: 940,
 		minWidth: 1000,
 		minHeight: 680,
-		title: '仓盒 · svnbox',
+		title: translate('desktop.windowTitle'),
 		titleBarStyle: 'hiddenInset',
 		trafficLightPosition: { x: 19, y: 26 },
 		backgroundColor: '#00000000',
@@ -341,9 +373,9 @@ async function createWindow(): Promise<void> {
 		if (service.getOperations().some((operation) => ['running', 'waiting'].includes(operation.state))) {
 			const choice = dialog.showMessageBoxSync(window!, {
 				type: 'warning',
-				title: '仍有 SVN 操作进行中',
-				message: '退出会终止进行中的操作。取消不会回滚，提交结果可能需要核实。',
-				buttons: ['继续等待', '退出并终止'],
+				title: translate('desktop.anSvnOperationIsStillRunning'),
+				message: translate('desktop.quittingWillStopRunningOperationsCancellationDoesNot'),
+				buttons: [translate('desktop.keepWaiting'), translate('desktop.quitAndStopOperations')],
 				defaultId: 0,
 				cancelId: 0,
 			});
@@ -371,20 +403,179 @@ app.on('second-instance', () => {
 	window?.focus();
 });
 
+function refreshApplicationMenu(): void {
+	app.setAboutPanelOptions({ applicationName: translate('desktop.aboutApplicationName'), applicationVersion: app.getVersion(), copyright: '© 2026 svnbox' });
+	window?.setTitle(translate('desktop.windowTitle'));
+	Menu.setApplicationMenu(
+		Menu.buildFromTemplate([
+			{
+				label: translate('common.appName'),
+				submenu: [
+					{
+						role: 'about',
+						label: translate('desktop.aboutSvnbox'),
+					},
+					{
+						label: translate('desktop.checkForUpdates'),
+						click: () => navigate('app-update'),
+					},
+					{ type: 'separator' },
+					{
+						label: translate('desktop.settings'),
+						accelerator: 'CmdOrCtrl+,',
+						click: () => navigate('settings'),
+					},
+					{ type: 'separator' },
+					{
+						role: 'hide',
+						label: translate('desktop.hideSvnbox'),
+					},
+					{
+						role: 'hideOthers',
+						label: translate('desktop.hideOthers'),
+					},
+					{
+						role: 'unhide',
+						label: translate('desktop.showAll'),
+					},
+					{ type: 'separator' },
+					{
+						role: 'quit',
+						label: translate('desktop.quitSvnbox'),
+					},
+				],
+			},
+			{
+				label: translate('common.file'),
+				submenu: [
+					{
+						label: translate('desktop.addWorkingCopy'),
+						accelerator: 'CmdOrCtrl+O',
+						click: () => navigate('add'),
+					},
+					{
+						label: translate('desktop.browseAndCheckOut'),
+						accelerator: 'CmdOrCtrl+Shift+O',
+						click: () => navigate('remote'),
+					},
+					{ type: 'separator' },
+					{
+						label: translate('desktop.commit'),
+						accelerator: 'CmdOrCtrl+Enter',
+						click: () => navigate('commit'),
+					},
+					{
+						label: translate('desktop.update'),
+						accelerator: 'CmdOrCtrl+U',
+						click: () => navigate('update'),
+					},
+					{
+						label: translate('common.refreshLocalStatus'),
+						accelerator: 'CmdOrCtrl+R',
+						click: () => navigate('refresh'),
+					},
+					{ type: 'separator' },
+					{
+						role: 'close',
+						label: translate('desktop.closeWindow'),
+					},
+				],
+			},
+			{
+				label: translate('desktop.edit'),
+				submenu: [
+					{
+						role: 'undo',
+						label: translate('desktop.undo'),
+					},
+					{
+						role: 'redo',
+						label: translate('desktop.redo'),
+					},
+					{ type: 'separator' },
+					{
+						role: 'cut',
+						label: translate('desktop.cut'),
+					},
+					{
+						role: 'copy',
+						label: translate('common.copy'),
+					},
+					{
+						role: 'paste',
+						label: translate('desktop.paste'),
+					},
+					{
+						role: 'selectAll',
+						label: translate('desktop.selectAll'),
+					},
+				],
+			},
+			{
+				label: translate('desktop.view'),
+				submenu: [
+					{
+						label: translate('desktop.changes'),
+						accelerator: 'CmdOrCtrl+1',
+						click: () => navigate('changes'),
+					},
+					{
+						label: translate('common.files'),
+						accelerator: 'CmdOrCtrl+2',
+						click: () => navigate('files'),
+					},
+					{
+						label: translate('desktop.history'),
+						accelerator: 'CmdOrCtrl+3',
+						click: () => navigate('history'),
+					},
+					{
+						label: translate('desktop.operations'),
+						accelerator: 'CmdOrCtrl+J',
+						click: () => navigate('operations'),
+					},
+					{ type: 'separator' },
+					{
+						role: 'toggleDevTools',
+						label: translate('desktop.developerTools'),
+					},
+					{
+						role: 'togglefullscreen',
+						label: translate('desktop.fullScreen'),
+					},
+				],
+			},
+			{
+				label: translate('desktop.window'),
+				submenu: [
+					{
+						role: 'minimize',
+						label: translate('desktop.minimize'),
+					},
+					{
+						role: 'zoom',
+						label: translate('desktop.zoom'),
+					},
+				],
+			},
+		]),
+	);
+}
+
 app.whenReady().then(async () => {
 	if (!ownsInstance) {
 		return;
 	}
-	app.setAboutPanelOptions({ applicationName: '仓盒 svnbox', applicationVersion: app.getVersion(), copyright: '© 2026 svnbox' });
 	const directory = app.getPath('userData');
 	service = new SvnService(new Store(directory), runner, (operation) => window?.webContents.send('svnbox:operation', operation), new SecureVault(directory));
 	try {
 		await service.initialize();
 	} catch (error) {
-		dialog.showErrorBox('无法读取仓盒数据', String(error));
+		dialog.showErrorBox(translate('desktop.unableToReadSvnboxData'), String(error));
 		app.quit();
 		return;
 	}
+	await uiI18n.changeLanguage(service.store.get().settings.language ?? UI_LANGUAGE);
 	nativeTheme.themeSource = getTheme(service.store.get().settings.theme).scheme;
 	const updater = electronUpdater.autoUpdater;
 	updater.autoDownload = false;
@@ -396,7 +587,12 @@ app.whenReady().then(async () => {
 	appUpdates = new AppUpdates({
 		client: updater,
 		version: app.getVersion(),
-		disabledReason: !app.isPackaged ? '开发模式下不检查应用更新。' : process.platform !== 'darwin' || process.arch !== 'arm64' ? '当前平台暂不支持应用内更新。' : undefined,
+		disabledReason: !app.isPackaged
+			? translate('updates.developmentDisabled')
+			: process.platform !== 'darwin' || process.arch !== 'arm64'
+				? translate('updates.platformDisabled')
+				: undefined,
+		disabledReasonKey: !app.isPackaged ? 'updates.developmentDisabled' : process.platform !== 'darwin' || process.arch !== 'arm64' ? 'updates.platformDisabled' : undefined,
 		isBusy: () => pendingSvnWrites > 0 || service.getOperations().some((operation) => ['waiting', 'running'].includes(operation.state)),
 		beforeInstall: async () => {
 			await Promise.all([service.store.flush(), service.flush()]);
@@ -413,69 +609,7 @@ app.whenReady().then(async () => {
 		}
 	});
 	registerIpc();
-	Menu.setApplicationMenu(
-		Menu.buildFromTemplate([
-			{
-				label: '仓盒',
-				submenu: [
-					{ role: 'about', label: '关于仓盒' },
-					{ label: '检查更新', click: () => navigate('app-update') },
-					{ type: 'separator' },
-					{ label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => navigate('settings') },
-					{ type: 'separator' },
-					{ role: 'hide', label: '隐藏仓盒' },
-					{ role: 'hideOthers', label: '隐藏其他' },
-					{ role: 'unhide', label: '全部显示' },
-					{ type: 'separator' },
-					{ role: 'quit', label: '退出仓盒' },
-				],
-			},
-			{
-				label: '文件',
-				submenu: [
-					{ label: '添加工作副本…', accelerator: 'CmdOrCtrl+O', click: () => navigate('add') },
-					{ label: '浏览与检出…', accelerator: 'CmdOrCtrl+Shift+O', click: () => navigate('remote') },
-					{ type: 'separator' },
-					{ label: '提交…', accelerator: 'CmdOrCtrl+Enter', click: () => navigate('commit') },
-					{ label: '更新…', accelerator: 'CmdOrCtrl+U', click: () => navigate('update') },
-					{ label: '刷新本地状态', accelerator: 'CmdOrCtrl+R', click: () => navigate('refresh') },
-					{ type: 'separator' },
-					{ role: 'close', label: '关闭窗口' },
-				],
-			},
-			{
-				label: '编辑',
-				submenu: [
-					{ role: 'undo', label: '撤销' },
-					{ role: 'redo', label: '重做' },
-					{ type: 'separator' },
-					{ role: 'cut', label: '剪切' },
-					{ role: 'copy', label: '复制' },
-					{ role: 'paste', label: '粘贴' },
-					{ role: 'selectAll', label: '全选' },
-				],
-			},
-			{
-				label: '视图',
-				submenu: [
-					{ label: '变更', accelerator: 'CmdOrCtrl+1', click: () => navigate('changes') },
-					{ label: '文件', accelerator: 'CmdOrCtrl+2', click: () => navigate('files') },
-					{ label: '历史', accelerator: 'CmdOrCtrl+3', click: () => navigate('history') },
-					{ label: '操作记录', accelerator: 'CmdOrCtrl+J', click: () => navigate('operations') },
-					{ type: 'separator' },
-					{ role: 'toggleDevTools', label: '开发者工具' },
-					{ role: 'togglefullscreen', label: '全屏' },
-				],
-			},
-			{
-				label: '窗口',
-				submenu: [
-					{ role: 'minimize', label: '最小化' },
-					{ role: 'zoom', label: '缩放' },
-				],
-			},
-		]),
-	);
+	refreshApplicationMenu();
 	await createWindow();
 	app.on('activate', () => {
 		if (!window) {
@@ -491,9 +625,9 @@ app.on('before-quit', (event) => {
 	if (!exitApproved && service?.getOperations().some((operation) => ['running', 'waiting'].includes(operation.state))) {
 		const choice = dialog.showMessageBoxSync({
 			type: 'warning',
-			title: '仍有操作进行中',
-			message: '退出会终止 SVN 操作。取消不会回滚，提交结果可能需要核实。',
-			buttons: ['继续等待', '退出并终止'],
+			title: translate('desktop.anOperationIsStillRunning'),
+			message: translate('desktop.quittingWillStopSvnOperationsCancellationDoesNot'),
+			buttons: [translate('desktop.keepWaiting'), translate('desktop.quitAndStopOperations')],
 			defaultId: 0,
 			cancelId: 0,
 		});

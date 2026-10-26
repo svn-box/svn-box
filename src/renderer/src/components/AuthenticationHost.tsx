@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ChevronRight, Cloud, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,11 +19,13 @@ function readablePath(path: string): string {
 }
 
 export function AuthenticationHost() {
+	useTranslation();
 	const request = useSyncExternalStore(subscribeAuthentication, currentAuthentication);
 	return request ? <AuthenticationDialog key={request.id} id={request.id} context={request.context} intent={request.intent} /> : null;
 }
 
 function AuthenticationDialog({ id, context, intent }: { id: string; context: AuthenticationContext; intent: AuthenticationIntent }) {
+	const { t } = useTranslation();
 	const editing = intent === 'edit';
 	const [username, setUsername] = useState(context.username);
 	const [password, setPassword] = useState('');
@@ -31,12 +34,11 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 	const [loading, setLoading] = useState(editing && !!context.credentialId);
 	const actionLock = useRef(false);
 	const passwordInput = useRef<HTMLInputElement>(null);
-	const [error, setError] = useState(context.reason === 'rejected' ? '服务器未接受这份认证，请重新输入用户名和密码。' : '');
+	const [error, setError] = useState(context.reason === 'rejected' ? t('authenticationHost.theServerRejectedTheseCredentialsEnterYourUsername') : '');
 	const address = svnAddress(context.url);
 	const connection = connectionRoot(context.url);
 	const repository = credentialRoot(context.repositoryRoot ?? context.url);
 	const roots = [...new Set([connection, repository, context.rootUrl])];
-
 	useEffect(() => {
 		if (!editing || !context.credentialId) {
 			return;
@@ -49,7 +51,7 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 					setUsername(value.username);
 					setPassword(value.password);
 					if (!value.password) {
-						setError('未找到已保存的密码，请重新输入。');
+						setError(t('authenticationHost.noSavedPasswordWasFoundEnterItAgain'));
 					}
 				}
 			})
@@ -67,7 +69,6 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 			active = false;
 		};
 	}, [editing, context.credentialId, context.rootUrl, context.url]);
-
 	useEffect(() => {
 		if (!loading && context.username) {
 			passwordInput.current?.focus();
@@ -98,7 +99,7 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 			});
 			setPassword('');
 			window.dispatchEvent(new CustomEvent('svnbox:authentication-changed', { detail: state }));
-			toast.success('认证已保存');
+			toast.success(t('authenticationHost.credentialsSaved'));
 			finishAuthentication(id);
 		} catch (error) {
 			setError(errorText(error));
@@ -111,27 +112,31 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 	return (
 		<Dialog open onOpenChange={(open) => !open && close()}>
 			<DialogContent className="authentication-dialog" overlayClassName="authentication-overlay">
-				<aside className="authentication-identity" aria-label="当前连接">
+				<aside className="authentication-identity" aria-label={t('authenticationHost.currentConnection')}>
 					<Cloud aria-hidden="true" />
-					<span className="authentication-protocol">{address.protocol.slice(0, -1).toUpperCase()} 连接</span>
-					<strong title={connection}>{address.host || '本地仓库'}</strong>
+					<span className="authentication-protocol">
+						{t('authenticationHost.connection', {
+							value: address.protocol.slice(0, -1).toUpperCase(),
+						})}
+					</span>
+					<strong title={connection}>{address.host || t('authenticationHost.localRepository')}</strong>
 					<p className="authentication-path" title={context.url}>
 						{readablePath(address.pathname) || '/'}
 					</p>
 					<div className="authentication-security">
 						<ShieldCheck aria-hidden="true" />
 						<p>
-							密码在本机加密保存
+							{t('authenticationHost.passwordEncryptedOnThisMac')}
 							<br />
-							其他服务器不会共用
+							{t('authenticationHost.neverSharedWithOtherServers')}
 						</p>
 					</div>
 				</aside>
 				<div className="authentication-main">
 					<header className="authentication-heading">
-						<DialogTitle className="dialog-title">连接认证</DialogTitle>
+						<DialogTitle className="dialog-title">{t('authenticationHost.connectionCredentials')}</DialogTitle>
 						<DialogDescription className="authentication-description">
-							{editing ? '编辑此连接的认证' : '使用 SVN 账号登录'}
+							{editing ? t('authenticationHost.editCredentialsForThisConnection') : t('authenticationHost.signInWithYourSvnAccount')}
 							<span className="sr-only">：{context.url}</span>
 						</DialogDescription>
 					</header>
@@ -142,7 +147,7 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 						}}
 					>
 						<label>
-							<span>用户名</span>
+							<span>{t('authenticationHost.username')}</span>
 							<input
 								autoFocus={!context.username && !loading}
 								autoComplete="username"
@@ -152,7 +157,7 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 							/>
 						</label>
 						<label>
-							<span>密码</span>
+							<span>{t('authenticationHost.password')}</span>
 							<input
 								ref={passwordInput}
 								type="password"
@@ -166,18 +171,23 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 						<details className="authentication-options">
 							<summary>
 								<ChevronRight aria-hidden="true" />
-								<span>认证选项</span>
+								<span>{t('authenticationHost.authenticationOptions')}</span>
 							</summary>
 							<div className="authentication-options-body">
 								<label>
-									保存范围
+									{t('authenticationHost.saveFor')}
 									<Select
-										label="认证适用范围"
+										label={t('authenticationHost.credentialScope')}
 										value={rootUrl}
 										disabled={busy || loading}
 										options={roots.map((root) => ({
 											value: root,
-											label: root === connection ? '此连接的所有子路径' : root === repository ? '仅当前仓库路径' : '当前已保存的路径',
+											label:
+												root === connection
+													? t('authenticationHost.allSubpathsOfThisConnection')
+													: root === repository
+														? t('authenticationHost.onlyThisRepositoryPath')
+														: t('authenticationHost.currentlySavedPath'),
 											description: root,
 										}))}
 										onValueChange={setRootUrl}
@@ -192,7 +202,7 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 										disabled={busy}
 										onClick={() => finishAuthentication(id, false, 'existing')}
 									>
-										使用 SVN 已有认证缓存
+										{t('authenticationHost.useExistingSvnCredentials')}
 									</Button>
 								)}
 							</div>
@@ -204,7 +214,7 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 						)}
 						<footer className="authentication-footer">
 							<Button className="authentication-secondary" type="button" variant="outline" disabled={busy} onClick={close}>
-								取消
+								{t('common.cancel')}
 							</Button>
 							<Button
 								className="authentication-primary"
@@ -213,7 +223,7 @@ function AuthenticationDialog({ id, context, intent }: { id: string; context: Au
 								aria-busy={busy || loading || undefined}
 							>
 								{(busy || loading) && <LoaderCircle className="spin" />}
-								{busy ? '保存中…' : loading ? '读取中…' : '保存'}
+								{busy ? t('authenticationHost.saving') : loading ? t('authenticationHost.reading') : t('common.save')}
 							</Button>
 						</footer>
 					</form>

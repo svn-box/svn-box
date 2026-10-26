@@ -1,10 +1,10 @@
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './command';
-
 export interface ComboboxOption {
 	value: string;
 	label: string;
@@ -16,7 +16,7 @@ export function Combobox({
 	onValueChange,
 	options,
 	label,
-	placeholder = '请选择…',
+	placeholder,
 	disabled,
 	className,
 }: {
@@ -28,21 +28,29 @@ export function Combobox({
 	disabled?: boolean;
 	className?: string;
 }) {
+	const { t } = useTranslation();
 	const [open, setOpen] = useState(false);
 	const selected = options.find((option) => option.value === value);
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<Button variant="outline" role="combobox" aria-expanded={open} aria-label={label} disabled={disabled} className={cn('combobox-trigger', className)}>
-					<span className={cn('truncate', !selected && 'muted')}>{selected?.label ?? placeholder}</span>
+					<span className={cn('truncate', !selected && 'muted')}>{selected?.label ?? placeholder ?? t('combobox.choose')}</span>
 					<ChevronsUpDown />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="combobox-content">
 				<Command>
-					<CommandInput placeholder={`搜索${label}…`} aria-label={`搜索${label}`} />
+					<CommandInput
+						placeholder={t('combobox.search', {
+							label: label,
+						})}
+						aria-label={t('combobox.search2', {
+							label: label,
+						})}
+					/>
 					<CommandList>
-						<CommandEmpty>没有匹配项</CommandEmpty>
+						<CommandEmpty>{t('combobox.noMatches')}</CommandEmpty>
 						<CommandGroup>
 							{options.map((option, index) => (
 								<CommandItem

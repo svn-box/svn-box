@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import { isUiLanguage, translate, UI_LANGUAGE, type UiLanguage } from '../../../shared/i18n';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Check, CircleAlert, LoaderCircle, Settings, ShieldCheck, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,13 +9,28 @@ import { api, errorText } from '../lib/api';
 import { notifyError } from '../lib/feedback';
 import type { WorkspaceCatalog } from '../state/workspace-store';
 import { Button } from './ui/button';
-import { Combobox } from './ui/combobox';
+import { Select } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { AppUpdateSection } from './AppUpdateSection';
-
 const pages = [
-	{ id: 'general', label: '通用设置', icon: Settings },
-	{ id: 'tools', label: '工具', icon: Wrench },
+	{
+		id: 'general',
+
+		get label() {
+			return translate('settings.general');
+		},
+
+		icon: Settings,
+	},
+	{
+		id: 'tools',
+
+		get label() {
+			return translate('settings.tools');
+		},
+
+		icon: Wrench,
+	},
 ] as const;
 
 export function SettingsDialog({
@@ -27,6 +44,7 @@ export function SettingsDialog({
 	onClose: () => void;
 	updateRequest?: number;
 }) {
+	const { t, i18n } = useTranslation();
 	const id = useId();
 	const [page, setPage] = useState<(typeof pages)[number]['id']>('general');
 	const [path, setPath] = useState(state.settings.svnPath);
@@ -35,17 +53,17 @@ export function SettingsDialog({
 	const [busy, setBusy] = useState(false);
 	const [toolError, setToolError] = useState('');
 	const [savingTheme, setSavingTheme] = useState<Theme>();
+	const [savingLanguage, setSavingLanguage] = useState(false);
 	const saveLock = useRef(false);
 	const themeLock = useRef(false);
+	const languageLock = useRef(false);
 	const detectionRequest = useRef(0);
 	const dirty = path !== state.settings.svnPath || tool !== state.settings.mergeTool;
-
 	useEffect(() => {
 		if (updateRequest) {
 			setPage('general');
 		}
 	}, [updateRequest]);
-
 	useEffect(() => {
 		const request = ++detectionRequest.current;
 		void api
@@ -80,9 +98,9 @@ export function SettingsDialog({
 				setDetection(detected);
 			}
 			if (detected.ok) {
-				toast.success('设置已保存');
+				toast.success(t('settingsDialog.settingsSaved'));
 			} else {
-				toast.error(detected.error || 'SVN 检测未通过');
+				toast.error(detected.error || t('settingsDialog.svnDetectionFailed'));
 			}
 		} catch (error) {
 			setToolError(errorText(error));
@@ -109,18 +127,34 @@ export function SettingsDialog({
 		}
 	}
 
+	async function changeLanguage(language: UiLanguage) {
+		if (languageLock.current || i18n.resolvedLanguage === language) {
+			return;
+		}
+		languageLock.current = true;
+		setSavingLanguage(true);
+		try {
+			onState(await api.call('settings', { language }));
+		} catch (error) {
+			notifyError(error);
+		} finally {
+			languageLock.current = false;
+			setSavingLanguage(false);
+		}
+	}
+
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
 			<DialogContent className="settings-dialog">
 				<header className="settings-header">
-					<DialogTitle className="dialog-title">设置</DialogTitle>
-					<DialogDescription className="sr-only">管理语言、界面外观与本机 SVN 工具。</DialogDescription>
+					<DialogTitle className="dialog-title">{t('common.settings')}</DialogTitle>
+					<DialogDescription className="sr-only">{t('settingsDialog.manageLanguageAppearanceAndLocalSvnTools')}</DialogDescription>
 				</header>
 				<div className="settings-layout">
 					<div
 						className="settings-navigation"
 						role="tablist"
-						aria-label="设置分类"
+						aria-label={t('settingsDialog.settingsCategories')}
 						aria-orientation="vertical"
 						onKeyDown={(event) => {
 							if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key) || event.metaKey || event.ctrlKey || event.altKey) {
@@ -156,22 +190,38 @@ export function SettingsDialog({
 							<>
 								<div className="settings-row">
 									<div className="settings-row-copy">
-										<h3>语言</h3>
-										<p>当前仅支持简体中文，更多语言将在后续版本提供。</p>
+										<h3>{t('settings.language')}</h3>
+										<p>{t('settings.languageHint')}</p>
 									</div>
-									<Combobox label="界面语言" value="zh-CN" options={[{ value: 'zh-CN', label: '简体中文' }]} onValueChange={() => undefined} disabled />
+									<Select
+										label={t('settings.languageSelector')}
+										value={i18n.resolvedLanguage ?? UI_LANGUAGE}
+										options={[
+											{
+												value: 'zh-CN',
+												label: t('settings.languageChinese'),
+											},
+											{ value: 'en', label: t('settings.languageEnglish') },
+										]}
+										onValueChange={(language) => {
+											if (isUiLanguage(language)) {
+												void changeLanguage(language);
+											}
+										}}
+										disabled={savingLanguage}
+									/>
 								</div>
 								<div className="settings-row settings-appearance">
 									<div className="settings-row-copy">
-										<h3 id={`${id}-appearance`}>外观</h3>
-										<p>选择喜欢的配色，整个工作空间即时切换。</p>
+										<h3 id={`${id}-appearance`}>{t('settingsDialog.appearance')}</h3>
+										<p>{t('settingsDialog.chooseAColorThemeForTheEntireWorkspace')}</p>
 									</div>
 									<div className="settings-themes" role="group" aria-labelledby={`${id}-appearance`}>
-										{themes.map(({ id: value, label, description }) => (
+										{themes.map(({ id: value }) => (
 											<Button
 												key={value}
 												variant="ghost"
-												aria-label={label}
+												aria-label={t(`themes.${value}.label`)}
 												aria-pressed={state.settings.theme === value}
 												aria-busy={savingTheme === value || undefined}
 												disabled={!!savingTheme}
@@ -196,14 +246,14 @@ export function SettingsDialog({
 													</span>
 												</span>
 												<span className="settings-theme-caption">
-													<span>{label}</span>
+													<span>{t(`themes.${value}.label`)}</span>
 													{savingTheme === value ? (
 														<LoaderCircle className="spin" aria-hidden="true" />
 													) : state.settings.theme === value ? (
 														<Check aria-hidden="true" />
 													) : null}
 												</span>
-												<span className="settings-theme-description">{description}</span>
+												<span className="settings-theme-description">{t(`themes.${value}.description`)}</span>
 											</Button>
 										))}
 									</div>
@@ -219,15 +269,15 @@ export function SettingsDialog({
 								)}
 								<div className="settings-row settings-tool">
 									<div className="settings-row-copy">
-										<h3>SVN 命令行工具</h3>
-										<p>默认使用仓盒内置 SVN，也可指定本机的可执行文件。</p>
+										<h3>{t('settingsDialog.svnCommandLineTool')}</h3>
+										<p>{t('settingsDialog.useTheBundledSvnClientOrSelectA')}</p>
 									</div>
 									<label>
-										可执行文件路径
+										{t('settingsDialog.executablePath')}
 										<input
 											value={path}
 											onChange={(event) => setPath(event.target.value)}
-											placeholder="留空使用仓盒内置 SVN"
+											placeholder={t('settingsDialog.leaveBlankToUseBundledSvn')}
 											disabled={busy}
 											spellCheck={false}
 										/>
@@ -235,36 +285,47 @@ export function SettingsDialog({
 									<div className={`settings-detection ${detection?.ok ? 'good' : detection ? 'error-text' : 'muted'}`} role="status">
 										{busy || !detection ? <LoaderCircle className="spin" /> : detection.ok ? <ShieldCheck /> : <CircleAlert />}
 										<div>
-											{busy || !detection ? '正在检测 SVN…' : detection.ok ? `Subversion ${detection.version}` : 'SVN 不可用'}
+											{busy || !detection
+												? t('settingsDialog.detectingSvn')
+												: detection.ok
+													? `Subversion ${detection.version}`
+													: t('settingsDialog.svnUnavailable')}
 											{!busy && detection && <p>{detection.ok ? detection.path : detection.error}</p>}
 										</div>
 									</div>
 								</div>
 								<div className="settings-row settings-tool">
 									<label>
-										外部合并工具
+										{t('settingsDialog.externalMergeTool')}
 										<input
 											value={tool}
 											onChange={(event) => setTool(event.target.value)}
-											placeholder="例如 /Applications/Kaleidoscope.app"
+											placeholder={t('settingsDialog.forExampleApplicationsKaleidoscopeApp')}
 											disabled={busy}
 											spellCheck={false}
 										/>
 									</label>
-									<p className="settings-help">用于打开冲突文件；保存后回到仓盒检查，再明确标记为已解决。普通差异比较使用 FileMerge。</p>
+									<p className="settings-help">{t('settingsDialog.useItToMergeConflictFilesSaveReturn')}</p>
 								</div>
 							</>
 						)}
 					</section>
 				</div>
 				<footer className="settings-footer">
-					<span>{dirty ? '工具页有未保存的更改' : page === 'general' ? '外观更改自动保存' : '工具配置保存在本机'}</span>
+					<span>
+						{dirty
+							? t('settingsDialog.unsavedChangesOnTheToolsPage')
+							: page === 'general'
+								? t('settingsDialog.appearanceChangesSaveAutomatically')
+								: t('settingsDialog.toolSettingsAreStoredOnThisMac')}
+					</span>
 					<Button variant="outline" onClick={onClose}>
-						关闭
+						{t('common.close')}
 					</Button>
 					{page === 'tools' && (
 						<Button disabled={busy} aria-busy={busy || undefined} onClick={() => void save()}>
-							{busy && <LoaderCircle className="spin" />}保存并检测
+							{busy && <LoaderCircle className="spin" />}
+							{t('settingsDialog.saveAndDetect')}
 						</Button>
 					)}
 				</footer>

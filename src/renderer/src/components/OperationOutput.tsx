@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDownToLine, CheckCircle2, CircleAlert, CircleX, LoaderCircle, TriangleAlert } from 'lucide-react';
@@ -7,6 +8,7 @@ import { opLabels } from './file-presentation';
 import { Button } from './ui/button';
 
 export function OperationStatus({ operation }: { operation: Operation }) {
+	const { t } = useTranslation();
 	const conflicts = operationHasConflicts(operation);
 	const Icon =
 		operation.state === 'running' || operation.state === 'waiting'
@@ -21,39 +23,43 @@ export function OperationStatus({ operation }: { operation: Operation }) {
 	return (
 		<span className={`logs-state ${conflicts ? 'uncertain' : operation.state}`}>
 			<Icon size={12} className={operation.state === 'running' ? 'spin' : ''} />
-			{conflicts ? '完成 · 有冲突' : opLabels[operation.state]}
+			{conflicts ? t('operationOutput.completedWithConflicts') : opLabels[operation.state]}
 		</span>
 	);
 }
 
 export const OperationOutput = memo(function OperationOutput({ operation }: { operation: Operation }) {
+	const { t } = useTranslation();
 	const [follow, setFollow] = useState(true);
 	const viewport = useRef<HTMLDivElement>(null);
 	const text = useMemo(() => operationOutput(operation), [operation]);
 	const lines = useMemo(() => (text ? text.trimEnd().split('\n') : []), [text]);
 	const virtualizer = useVirtualizer({ count: lines.length, getScrollElement: () => viewport.current, estimateSize: () => 19, overscan: 16 });
-
 	useLayoutEffect(() => {
 		if (follow && viewport.current) {
 			viewport.current.scrollTop = viewport.current.scrollHeight;
 		}
 	}, [text, follow]);
-
 	return (
 		<div className="logs-output">
 			<div className="logs-output-toolbar">
 				<span>
-					命令输出<span className="logs-line-count">{lines.length} 行</span>
+					{t('operationOutput.commandOutput')}
+					<span className="logs-line-count">
+						{t('operationOutput.lines', {
+							count: lines.length,
+						})}
+					</span>
 				</span>
 				<label>
 					<input type="checkbox" checked={follow} onChange={(event) => setFollow(event.target.checked)} />
-					自动跟随
+					{t('operationOutput.followOutput')}
 				</label>
 				<Button
 					variant="ghost"
 					size="icon"
-					aria-label="跳到日志末尾"
-					title="跳到末尾并跟随输出"
+					aria-label={t('operationOutput.jumpToEndOfLog')}
+					title={t('operationOutput.jumpToEndAndFollowOutput')}
 					onClick={() => {
 						if (viewport.current) {
 							viewport.current.scrollTop = viewport.current.scrollHeight;
@@ -68,7 +74,7 @@ export const OperationOutput = memo(function OperationOutput({ operation }: { op
 				ref={viewport}
 				className="logs-output-viewport"
 				tabIndex={0}
-				aria-label="日志文本"
+				aria-label={t('operationOutput.logText')}
 				onScroll={() => {
 					const element = viewport.current;
 					if (element && follow && element.scrollHeight - element.scrollTop - element.clientHeight > 38) {
@@ -91,7 +97,11 @@ export const OperationOutput = memo(function OperationOutput({ operation }: { op
 					</div>
 				) : (
 					<div className="logs-output-empty">
-						{operation.state === 'waiting' ? '等待同一工作副本的前序操作完成…' : operation.state === 'running' ? '正在执行，等待命令输出…' : '此操作没有额外命令输出'}
+						{operation.state === 'waiting'
+							? t('operationOutput.waitingForEarlierOperationsOnThisWorkingCopy')
+							: operation.state === 'running'
+								? t('operationOutput.runningWaitingForCommandOutput')
+								: t('operationOutput.noAdditionalCommandOutputForThisOperation')}
 					</div>
 				)}
 			</div>

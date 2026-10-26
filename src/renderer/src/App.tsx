@@ -1,3 +1,5 @@
+import { operationAction } from '../../shared/operation-log';
+import { useTranslation } from 'react-i18next';
 import { getTheme } from '../../shared/themes';
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
@@ -51,10 +53,13 @@ import { OperationsDialog } from './components/OperationsDialog';
 import { resizePanel as resize } from './lib/panel-resize';
 
 const setShowDetails = (value: boolean | ((previous: boolean) => boolean)) => workspaceStore.getState().setPanel('showDetails', value);
+
 const setShowOperations = (value: boolean | ((previous: boolean) => boolean)) => workspaceStore.getState().setPanel('showOperations', value);
+
 const setSidebarWidth = (value: number | ((previous: number) => number)) => workspaceStore.getState().setSize('sidebarWidth', value);
 
 export function App() {
+	const { t } = useTranslation();
 	const state = useWorkspaceStore((store) => store.catalog);
 	const activeId = useWorkspaceStore((store) => store.activeId);
 	const operations = useOperationSummary();
@@ -76,7 +81,8 @@ export function App() {
 	const [editName, setEditName] = useState('');
 	const [renameTarget, setRenameTarget] = useState<string>();
 	const [renameValue, setRenameValue] = useState('');
-	const [detected, setDetected] = useState('检测中');
+	const [detection, setDetection] = useState<{ ok: boolean; version: string }>();
+	const detected = detection ? (detection.ok ? `SVN ${detection.version}` : t('workspace.svnNotConfigured')) : t('workspace.detecting');
 	const navigateRef = useRef<(action: string) => void>(() => {});
 	const wc = activeRepositoryId ? undefined : state?.workingCopies.find((copy) => copy.id === activeId);
 	const wcRepository = state?.repositories.find((repository) => repository.id === wc?.repositoryId);
@@ -85,7 +91,7 @@ export function App() {
 	const statusQueries = useQueries({ queries: (state?.workingCopies ?? []).map((copy) => svnQueries.statusOptions(copy.id)) });
 	const loading = Object.fromEntries((state?.workingCopies ?? []).map((copy, index) => [copy.id, statusQueries[index].isFetching]));
 	const preparingUpdate = useWorkspaceStore((store) => !!(activeId && store.updateIntents[activeId]?.preparing));
-	const updating = operations.some((operation) => operation.wcId === activeId && operation.label === '更新工作副本' && ['waiting', 'running'].includes(operation.state));
+	const updating = operations.some((operation) => operation.wcId === activeId && operationAction(operation) === 'update' && ['waiting', 'running'].includes(operation.state));
 	const busyWrite = preparingUpdate || operations.some((operation) => operation.wcId === activeId && ['waiting', 'running'].includes(operation.state));
 	const changed = snapshot?.files.filter(isChanged) ?? [];
 	const commitFiles = changed.filter((file) => !isConflict(file) && !file.external && !['missing', 'obstructed', 'incomplete'].includes(file.item));
@@ -107,9 +113,16 @@ export function App() {
 			try {
 				const next = await svnQueries.refreshStatus(id, remote);
 				if (remote) {
-					toast.info(`远端检查完成 · ${next.remoteChanges ?? 0} 个路径有变化`, { description: '仅检查远端状态，磁盘文件尚未更新' });
+					toast.info(
+						t('workspace.remoteCheckCompleteChangedPaths', {
+							value: next.remoteChanges ?? 0,
+						}),
+						{
+							description: t('workspace.remoteStatusWasCheckedFilesOnDiskHave'),
+						},
+					);
 				} else if (announce) {
-					toast.success('本地状态已刷新');
+					toast.success(t('workspace.localStatusRefreshed'));
 				}
 			} catch (error) {
 				if (!isCancelledError(error) && (error as { kind?: string }).kind !== 'cancelled') {
@@ -120,22 +133,20 @@ export function App() {
 				}
 			}
 		},
-		[showError],
+		[showError, t],
 	);
-
 	useEffect(() => {
 		const unsubscribeRuntime = subscribeWorkspaceRuntime(showError);
 		void api
 			.call('detect', {})
-			.then((result) => setDetected(result.ok ? `SVN ${result.version}` : 'SVN 未配置'))
-			.catch(() => setDetected('SVN 未配置'));
+			.then(setDetection)
+			.catch(() => setDetection({ ok: false, version: '' }));
 		const unsubscribeMenu = api.onNavigate((action) => navigateRef.current(action));
 		return () => {
 			unsubscribeRuntime();
 			unsubscribeMenu();
 		};
 	}, []);
-
 	useEffect(() => {
 		if (!state) {
 			return;
@@ -162,7 +173,7 @@ export function App() {
 			const next = await api.call('addWorkingCopy', { path });
 			workspaceStore.getState().accept(next, true);
 			setActiveRepositoryId(undefined);
-			toast.success('工作副本已添加');
+			toast.success(t('workspace.workingCopyAdded'));
 			if (next.activeId) {
 				void refresh(next.activeId);
 			}
@@ -251,7 +262,12 @@ export function App() {
 		if (!workspaceStore.getState().beginUpdate(wcId, toastId)) {
 			return;
 		}
-		toast.loading('准备更新工作副本…', { id: toastId, description: `${wc.name} · 检查工作副本与仓库连接` });
+		toast.loading(t('workspace.preparingToUpdateWorkingCopy'), {
+			id: toastId,
+			description: t('workspace.checkingTheWorkingCopyAndRepositoryConnection', {
+				name: wc.name,
+			}),
+		});
 		try {
 			const next = await api.call('review', { wcId, action: 'update', paths: [] });
 			const operation = await api.call('execute', { reviewId: next.id });
@@ -269,7 +285,7 @@ export function App() {
 		}
 		try {
 			await api.call('compare', { wcId: activeId, path, revision });
-			toast.success('已在 FileMerge 中打开比较');
+			toast.success(t('workspace.comparisonOpenedInFilemerge'));
 		} catch (error) {
 			showError(error);
 		}
@@ -314,6 +330,7 @@ export function App() {
 				setContext(undefined);
 			}
 		};
+
 		window.addEventListener('keydown', key);
 		return () => window.removeEventListener('keydown', key);
 	}, []);
@@ -331,11 +348,11 @@ export function App() {
 						setPreviewHidden(false);
 					}}
 				>
-					查看内置差异
+					{t('workspace.viewBuiltInDiff')}
 				</DropdownMenuItem>,
 				file?.kind === 'file' && (
 					<DropdownMenuItem key="compare" icon={<Files />} onSelect={() => void compareFile(path)}>
-						在 FileMerge 中比较
+						{t('workspace.compareInFilemerge')}
 					</DropdownMenuItem>
 				),
 				<DropdownMenuItem
@@ -345,23 +362,23 @@ export function App() {
 						patchSession({ view: 'history', historyTarget: path, historyDiffPath: path, historyRevision: undefined });
 					}}
 				>
-					查看此路径历史
+					{t('workspace.showPathHistory')}
 				</DropdownMenuItem>,
 			],
 			[
 				file && isChanged(file) && !isConflict(file) && (
 					<DropdownMenuItem key="commit" icon={<Upload />} onSelect={() => openCommit([path])}>
-						提交此路径…
+						{t('workspace.commitThisPath')}
 					</DropdownMenuItem>
 				),
 				file?.item === 'unversioned' && (
 					<DropdownMenuItem key="add" icon={<Plus />} onSelect={() => void requestReview('add', [path])}>
-						加入版本控制…
+						{t('workspace.addToVersionControl')}
 					</DropdownMenuItem>
 				),
 				file?.item === 'unversioned' && (
 					<DropdownMenuItem key="ignore" icon={<EyeOff />} onSelect={() => void requestReview('ignore', [path])}>
-						忽略此名称…
+						{t('workspace.ignoreThisName')}
 					</DropdownMenuItem>
 				),
 				canEdit && (
@@ -373,7 +390,7 @@ export function App() {
 							setRenameValue(path);
 						}}
 					>
-						重命名 / 移动…
+						{t('workspace.renameMove')}
 					</DropdownMenuItem>
 				),
 			],
@@ -386,17 +403,17 @@ export function App() {
 							void api.call('system', { wcId: activeId!, path, action: 'merge' }).catch(showError);
 						}}
 					>
-						用外部合并工具打开
+						{t('workspace.openInExternalMergeTool')}
 					</DropdownMenuItem>
 				),
 				file && isConflict(file) && (
 					<DropdownMenuItem key="check" icon={<RefreshCw />} onSelect={() => void refresh(activeId)}>
-						检查解决结果
+						{t('workspace.checkResolution')}
 					</DropdownMenuItem>
 				),
 				file && isConflict(file) && (
 					<DropdownMenuItem key="resolve" icon={<CheckCircle2 />} onSelect={() => void requestReview('resolve', [path])}>
-						接受当前文件并标记已解决…
+						{t('workspace.acceptWorkingFileAndMarkResolved')}
 					</DropdownMenuItem>
 				),
 			],
@@ -408,7 +425,7 @@ export function App() {
 						void api.call('system', { wcId: activeId!, path, action: 'reveal' }).catch(showError);
 					}}
 				>
-					在 Finder 中显示
+					{t('workspace.revealInFinder')}
 				</DropdownMenuItem>,
 				<DropdownMenuItem
 					key="copy"
@@ -417,7 +434,7 @@ export function App() {
 						void api.call('system', { wcId: activeId!, path, action: 'copy' }).catch(showError);
 					}}
 				>
-					复制绝对路径
+					{t('workspace.copyAbsolutePath')}
 				</DropdownMenuItem>,
 				<DropdownMenuItem
 					key="terminal"
@@ -426,18 +443,18 @@ export function App() {
 						void api.call('system', { wcId: activeId!, path, action: 'terminal' }).catch(showError);
 					}}
 				>
-					在终端中打开
+					{t('workspace.openInTerminal')}
 				</DropdownMenuItem>,
 			],
 			[
 				file && isChanged(file) && (
 					<DropdownMenuItem key="revert" icon={<RotateCcw />} destructive onSelect={() => void requestReview('revert', [path])}>
-						{path === '.' ? '还原整个副本的变更…' : '还原变更…'}
+						{path === '.' ? t('workspace.revertAllLocalChanges') : t('workspace.revertLocalChanges')}
 					</DropdownMenuItem>
 				),
 				canEdit && (
 					<DropdownMenuItem key="delete" icon={<Trash2 />} destructive onSelect={() => void requestReview('delete', [path])}>
-						删除磁盘内容并安排 SVN 删除…
+						{t('workspace.deleteDiskContentAndScheduleSvnDeletion')}
 					</DropdownMenuItem>
 				),
 			],
@@ -456,8 +473,8 @@ export function App() {
 		return (
 			<div className="boot">
 				<Archive size={40} />
-				<h1>仓盒</h1>
-				<p>正在载入本地工作空间…</p>
+				<h1>{t('common.appName')}</h1>
+				<p>{t('workspace.loadingLocalWorkspace')}</p>
 				{bootError && <pre className="inline-error">{bootError}</pre>}
 			</div>
 		);
@@ -484,8 +501,8 @@ export function App() {
 							<Button
 								variant="ghost"
 								size="icon"
-								aria-label="刷新本地状态"
-								title="刷新本地状态 · ⌘R"
+								aria-label={t('common.refreshLocalStatus')}
+								title={t('workspace.refreshLocalStatusR')}
 								disabled={!!loading[wc.id]}
 								onClick={() => void refresh(wc.id, false, true)}
 							>
@@ -493,29 +510,36 @@ export function App() {
 							</Button>
 							<Button variant="outline" disabled={busyWrite || reviewing} aria-busy={preparingUpdate || updating || undefined} onClick={() => void updateCopy()}>
 								{preparingUpdate || updating ? <LoaderCircle className="spin" /> : <ArrowDownToLine />}
-								更新
+								{t('workspace.update')}
 							</Button>
 							<Button disabled={busyWrite || reviewing || !snapshot || !commitFiles.length} onClick={() => openCommit()}>
 								<Upload />
-								提交…<span className="button-count">{commitFiles.length}</span>
+								{t('desktop.commit')}
+								<span className="button-count">{commitFiles.length}</span>
 							</Button>
 							<WorkingCopyMenu wc={wc} refresh={refresh} requestReview={requestReview} />
 						</div>
 					</div>
 				) : (
 					<div className="window-title">
-						<strong>{activeRepository?.name ?? '工作空间'}</strong>
+						<strong>{activeRepository?.name ?? t('workspace.workspace')}</strong>
 						<span>{activeRepository?.rootUrl ?? 'svnbox'}</span>
 					</div>
 				)}
-				<Button variant="ghost" size="icon" aria-label="切换详情面板" title="切换详情面板" onClick={() => setShowDetails((value) => !value)}>
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label={t('workspace.toggleInspector')}
+					title={t('workspace.toggleInspector')}
+					onClick={() => setShowDetails((value) => !value)}
+				>
 					{showDetails ? <PanelRightClose /> : <PanelRightOpen />}
 				</Button>
 			</header>
 			<div
 				className="sidebar-resizer"
 				role="separator"
-				aria-label="调整导航宽度"
+				aria-label={t('workspace.resizeNavigation')}
 				aria-orientation="vertical"
 				aria-valuemin={204}
 				aria-valuemax={380}
@@ -555,12 +579,12 @@ export function App() {
 					<div className="sidebar-bottom">
 						<button onClick={() => setShowOperations((value) => !value)} className={showOperations ? 'selected' : ''}>
 							<Clock3 size={15} />
-							<span>操作记录</span>
+							<span>{t('desktop.operations')}</span>
 							{activeOps.length > 0 ? <span className="nav-count">{activeOps.length}</span> : <kbd>⌘J</kbd>}
 						</button>
 						<button onClick={() => setModal('settings')}>
 							<Settings2 size={15} />
-							<span>设置</span>
+							<span>{t('common.settings')}</span>
 							<kbd>⌘,</kbd>
 						</button>
 					</div>
@@ -597,40 +621,44 @@ export function App() {
 							<div className="welcome-symbol">
 								<Archive size={44} />
 							</div>
-							<div className="eyebrow">SVNBOX · 仓盒</div>
-							<h1>每个项目，都有自己的位置。</h1>
+							<div className="eyebrow">{t('workspace.svnbox')}</div>
+							<h1>{t('workspace.aPlaceForEveryProject')}</h1>
 							<p>
-								把仓库与工作副本收进仓盒。
+								{t('workspace.bringRepositoriesAndWorkingCopiesIntoSvnbox')}
 								<br />
-								清晰审阅变更，从容提交每一个版本。
+								{t('workspace.reviewChangesClearlyCommitEachRevisionWithConfidence')}
 							</p>
 							<div className="welcome-buttons">
 								<Button onClick={() => void addWorkingCopy()}>
 									<Plus />
-									添加已有工作副本
+									{t('workspace.addExistingWorkingCopy')}
 								</Button>
 								<Button variant="outline" onClick={() => openRemote()}>
 									<Cloud />
-									浏览仓库与检出
+									{t('workspace.browseAndCheckOut')}
 								</Button>
 							</div>
 							<div className="welcome-features">
 								<span>
 									<FolderGit2 />
-									多副本独立管理
+									{t('workspace.independentWorkingCopies')}
 								</span>
 								<span>
 									<FileDiff />
-									文本与属性差异
+									{t('workspace.textAndPropertyDiffs')}
 								</span>
 								<span>
 									<ShieldCheck />
-									提交前范围审阅
+									{t('workspace.reviewTheCommitScope')}
 								</span>
 							</div>
 							<div className="welcome-shortcut">
 								<Keyboard size={14} />
-								⌘O 添加工作副本<span>·</span>⌘1–3 切换视图<span>·</span>⌘↵ 提交
+								{t('workspace.oAddWorkingCopy')}
+								<span>·</span>
+								{t('workspace.switchViews')}
+								<span>·</span>
+								{t('workspace.commit')}
 							</div>
 						</div>
 					)}
@@ -641,19 +669,24 @@ export function App() {
 					<span className="local-dot" />
 					{detected}
 					<span className="status-divider" />
-					{wc ? `${wc.depth === 'infinity' ? '完整深度' : wc.depth} · ${state.workingCopies.length} 个工作副本` : '准备就绪'}
+					{wc
+						? t('workspace.workingCopies', {
+								value: wc.depth === 'infinity' ? t('workspace.fullDepth') : wc.depth,
+								count: state.workingCopies.length,
+							})
+						: t('workspace.ready')}
 				</div>
 				{wc && <WorkspaceStatus wc={wc} />}
 				<button onClick={() => setShowOperations((value) => !value)}>
 					{activeOps.length > 0 ? (
 						<>
 							<LoaderCircle size={11} className="spin" />
-							{activeOps.length} 项操作执行中
+							{t('workspace.operationsRunning', { count: activeOps.length })}
 						</>
 					) : (
 						<>
 							<Check size={12} />
-							就绪
+							{t('workspace.ready2')}
 						</>
 					)}
 					<ChevronDown size={11} />
@@ -712,18 +745,28 @@ export function App() {
 				/>
 			)}
 			{(modal === 'group' || modal === 'manage') && (
-				<Modal title={modal === 'group' ? '新建分组' : '管理记录'} description="管理记录只影响仓盒列表。移除记录不会删除磁盘内容。" onClose={() => setModal(null)}>
+				<Modal
+					title={modal === 'group' ? t('workspace.newGroup') : t('workspace.manageRecord')}
+					description={t('workspace.recordsOnlyAffectTheSvnboxListRemovingA')}
+					onClose={() => setModal(null)}
+				>
 					<label>
-						名称
+						{t('workspace.name')}
 						<input autoFocus value={editName} onChange={(event) => setEditName(event.target.value)} />
 					</label>
 					{modal === 'manage' && manage?.entity !== 'group' && (
 						<label>
-							所属分组
+							{t('workspace.group')}
 							<Combobox
-								label="所属分组"
+								label={t('workspace.group')}
 								value={(manage?.entity === 'workingCopy' ? state.workingCopies : state.repositories).find((item) => item.id === manage?.id)?.groupId ?? ''}
-								options={[{ value: '', label: '未分组' }, ...state.groups.map((group) => ({ value: group.id, label: group.name }))]}
+								options={[
+									{
+										value: '',
+										label: t('workspace.ungrouped'),
+									},
+									...state.groups.map((group) => ({ value: group.id, label: group.name })),
+								]}
 								onValueChange={(groupId) => {
 									void api
 										.call('manage', { ...manage!, groupId })
@@ -744,7 +787,7 @@ export function App() {
 								}
 							}}
 						>
-							此连接的认证…
+							{t('workspace.connectionCredentials')}
 						</Button>
 					)}
 					{manage?.entity === 'workingCopy' && <p className="hint break-all">{state.workingCopies.find((copy) => copy.id === manage.id)?.path}</p>}
@@ -758,18 +801,18 @@ export function App() {
 										.call('manage', { ...manage, remove: true })
 										.then((next) => {
 											acceptState(next);
-											toast.success('管理记录已更新');
+											toast.success(t('workspace.managementRecordUpdated'));
 											setModal(null);
 										})
 										.catch(showError);
 								}}
 							>
 								<Trash2 />
-								移除管理记录
+								{t('workspace.removeManagementRecord')}
 							</Button>
 						)}
 						<Button variant="outline" onClick={() => setModal(null)}>
-							取消
+							{t('common.cancel')}
 						</Button>
 						<Button
 							disabled={!editName.trim()}
@@ -783,24 +826,28 @@ export function App() {
 									.catch(showError);
 							}}
 						>
-							保存
+							{t('common.save')}
 						</Button>
 					</div>
 				</Modal>
 			)}
 			{renameTarget && (
-				<Modal title="重命名 / 移动" description="输入工作副本内的相对目标路径，保留 SVN 历史。目标必须不存在。" onClose={() => setRenameTarget(undefined)}>
-					<p className="hint">来源：{renameTarget}</p>
+				<Modal title={t('workspace.renameMove2')} description={t('workspace.enterARelativeDestinationWithinThisWorkingCopy')} onClose={() => setRenameTarget(undefined)}>
+					<p className="hint">
+						{t('workspace.source', {
+							renameTarget: renameTarget,
+						})}
+					</p>
 					<label>
-						目标相对路径
+						{t('workspace.relativeDestinationPath')}
 						<input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} />
 					</label>
 					<div className="dialog-footer">
 						<Button variant="outline" onClick={() => setRenameTarget(undefined)}>
-							取消
+							{t('common.cancel')}
 						</Button>
 						<Button disabled={!renameValue || reviewing} onClick={() => void requestReview('rename', [renameTarget], renameValue)}>
-							审阅重命名范围
+							{t('workspace.reviewRenameScope')}
 						</Button>
 					</div>
 				</Modal>

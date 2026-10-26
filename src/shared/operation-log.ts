@@ -1,4 +1,25 @@
+import { translate, UI_RESOURCES } from './i18n';
 import type { Operation } from './types';
+
+const actions = ['commit', 'update', 'add', 'rename', 'delete', 'ignore', 'revert', 'resolve', 'cleanup', 'checkout'] as const;
+
+export function operationAction(operation: Pick<Operation, 'action' | 'label'>): Operation['action'] {
+	return operation.action ?? actions.find((action) => Object.values(UI_RESOURCES).some((resource) => resource.translation.operations[action] === operation.label));
+}
+
+export function operationLabel(operation: Pick<Operation, 'action' | 'label'>): string {
+	const action = operationAction(operation);
+	return action ? translate(`operations.${action}`) : operation.label;
+}
+
+export function operationHasConflicts(operation: Operation): boolean {
+	return (
+		operation.state === 'success' &&
+		(operation.conflictCount !== undefined
+			? operation.conflictCount > 0
+			: operation.logs.some((line) => /个路径存在冲突|Update finished with \d+ conflicted paths/i.test(line)))
+	);
+}
 
 export function operationOutput(operation: Operation): string {
 	const output = operation.logs.join('').replace(/\r\n?/g, '\n');
@@ -12,10 +33,27 @@ export function operationOutput(operation: Operation): string {
 }
 
 export const operationLabels: Record<Operation['state'], string> = {
-	waiting: '等待中',
-	running: '执行中',
-	success: '已完成',
-	failed: '失败',
-	cancelled: '已取消',
-	uncertain: '结果待核实',
+	get waiting() {
+		return translate('operations.waiting');
+	},
+
+	get running() {
+		return translate('operations.running');
+	},
+
+	get success() {
+		return translate('operations.success');
+	},
+
+	get failed() {
+		return translate('operations.failed');
+	},
+
+	get cancelled() {
+		return translate('operations.cancelled');
+	},
+
+	get uncertain() {
+		return translate('operations.uncertain');
+	},
 };

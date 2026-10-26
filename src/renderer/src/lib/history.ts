@@ -1,5 +1,6 @@
+import { formatDate } from '../../../shared/i18n/format';
+import { translate } from '../../../shared/i18n';
 import type { LogEntry } from '../../../shared/types';
-
 export interface HistoryDay {
 	key: string;
 	label: string;
@@ -17,7 +18,7 @@ export function groupHistory(entries: LogEntry[]): HistoryDay[] {
 		if (!day) {
 			day = {
 				key,
-				label: valid ? date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) : '日期未知',
+				label: valid ? formatDate(date, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) : translate('history.unknownDate'),
 				entries: [],
 				pathCount: 0,
 			};

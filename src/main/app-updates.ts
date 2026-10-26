@@ -1,12 +1,17 @@
+import { translate } from '../shared/i18n';
 import type { AppUpdater } from 'electron-updater';
-import type { AppUpdateAction, AppUpdateState } from '../shared/app-updates';
+import type { AppUpdateAction, AppUpdateState, AppUpdateMessageKey } from '../shared/app-updates';
 
+class UpdateBusyError extends Error {
+	constructor() {
+		super(translate('updates.busy'));
+	}
+}
 type UpdateClient = Pick<AppUpdater, 'checkForUpdates' | 'downloadUpdate' | 'quitAndInstall'> & {
 	on(event: 'checking-for-update' | 'update-not-available' | 'update-downloaded' | 'error', listener: () => void): unknown;
 	on(event: 'update-available', listener: (info: { version: string }) => void): unknown;
 	on(event: 'download-progress', listener: (progress: { percent: number }) => void): unknown;
 };
-
 export class AppUpdates {
 	private state: AppUpdateState;
 	private pending?: Promise<AppUpdateState>;
@@ -14,6 +19,7 @@ export class AppUpdates {
 		client: UpdateClient;
 		version: string;
 		disabledReason?: string;
+		disabledReasonKey?: AppUpdateMessageKey;
 		isBusy: () => boolean;
 		beforeInstall: () => Promise<void>;
 		onChange: (state: AppUpdateState) => void;
@@ -21,7 +27,13 @@ export class AppUpdates {
 
 	constructor(options: AppUpdates['options']) {
 		this.options = options;
-		this.state = { phase: options.disabledReason ? 'disabled' : 'idle', currentVersion: options.version, revision: 0, message: options.disabledReason };
+		this.state = {
+			phase: options.disabledReason ? 'disabled' : 'idle',
+			currentVersion: options.version,
+			revision: 0,
+			message: options.disabledReason,
+			messageKey: options.disabledReasonKey,
+		};
 		const client = options.client;
 		client.on('checking-for-update', () => this.set({ phase: 'checking', version: undefined, percent: undefined, message: undefined }));
 		client.on('update-not-available', () => this.set({ phase: 'current', version: undefined, message: undefined }));
@@ -42,7 +54,10 @@ export class AppUpdates {
 	}
 
 	getState(): AppUpdateState {
-		return { ...this.state };
+		return {
+			...this.state,
+			message: this.state.messageKey ? translate(this.state.messageKey) : this.state.message,
+		};
 	}
 
 	async act(action: Exclude<AppUpdateAction, 'release'>): Promise<AppUpdateState> {
@@ -86,23 +101,26 @@ export class AppUpdates {
 		if (this.options.disabledReason) {
 			return;
 		}
+		if (Object.hasOwn(patch, 'message') && !Object.hasOwn(patch, 'messageKey')) {
+			patch = { ...patch, messageKey: undefined };
+		}
 		this.state = { ...this.state, ...patch, revision: this.state.revision + 1 };
 		this.options.onChange(this.getState());
 	}
 
 	private checkIdle(): void {
 		if (this.options.isBusy()) {
-			throw new Error('SVN 操作正在进行，请完成后再安装更新。');
+			throw new UpdateBusyError();
 		}
 	}
 
-	private fail(message?: string): void {
+	private fail(messageKey?: AppUpdateMessageKey): void {
 		const installing = this.state.phase === 'installing' || this.state.phase === 'downloaded';
+		const key = messageKey ?? (installing ? 'updates.installFailed' : this.state.version ? 'updates.downloadFailed' : 'updates.checkFailed');
 		this.set({
 			phase: installing ? 'downloaded' : 'error',
-			message:
-				message ??
-				(installing ? '更新安装未完成，请重试或从发布页下载安装。' : this.state.version ? '更新下载或校验失败，请重试。' : '暂时无法检查更新，请检查网络后重试。'),
+			message: translate(key),
+			messageKey: key,
 		});
 	}
 
@@ -110,7 +128,7 @@ export class AppUpdates {
 		// Defer the work so repeated actions share the lock even before the first await.
 		this.pending = Promise.resolve()
 			.then(work)
-			.catch((error: unknown) => this.fail(error instanceof Error && error.message.startsWith('SVN 操作') ? error.message : undefined))
+			.catch((error: unknown) => this.fail(error instanceof UpdateBusyError ? 'updates.busy' : undefined))
 			.then(() => this.getState())
 			.finally(() => {
 				this.pending = undefined;

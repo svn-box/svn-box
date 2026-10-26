@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
 import type { FileStatus } from '../../../shared/types';
 import { FileIcon } from './FileIcon';
@@ -21,6 +22,7 @@ export function FileTreeName({
 	onToggle: () => void;
 	onOpen: () => void;
 }) {
+	const { t } = useTranslation();
 	const parent = file.path.includes('/') ? file.path.split('/').slice(0, -1).join('/') : '';
 	return (
 		<div className="file-entry" style={{ paddingLeft: depth * 16 }}>
@@ -28,7 +30,7 @@ export function FileTreeName({
 				<button
 					className="tree-disclosure"
 					tabIndex={-1}
-					aria-label={`${expanded ? '收起' : '展开'} ${file.path === '.' ? name : file.path}`}
+					aria-label={`${expanded ? t('fileTreeName.collapse') : t('fileTreeName.expand')} ${file.path === '.' ? name : file.path}`}
 					aria-expanded={expanded}
 					onClick={onToggle}
 				>
@@ -52,7 +54,12 @@ export function FileTreeName({
 					{showParent && parent && <small>{parent}</small>}
 				</span>
 				{file.movedFrom && (
-					<span className="moved-hint" title={`从 ${file.movedFrom} 移动`}>
+					<span
+						className="moved-hint"
+						title={t('fileTreeName.movedFrom', {
+							movedFrom: file.movedFrom,
+						})}
+					>
 						↗
 					</span>
 				)}

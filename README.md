@@ -9,12 +9,12 @@
     <a href="#screenshots">Screenshots</a> ·
     <a href="https://github.com/svn-box/svn-box/issues">Report an issue</a>
   </p>
-  <p><sub>v0.1.1 · macOS 13+ · Apple Silicon (arm64)</sub></p>
+  <p><sub>v0.1.2 · macOS 13+ · Apple Silicon (arm64)</sub></p>
 </div>
 
 svnbox (仓盒) brings your Subversion projects into one desktop workspace. Switch between working copies, review changes, commit selected paths, and explore history without losing your place.
 
-The app interface is currently available in **Simplified Chinese**.
+The app interface supports **English and Simplified Chinese**, with instant switching in Settings.
 
 ## Features
 
@@ -40,7 +40,7 @@ Captured from the running app at **1920 × 1200** using fictional projects in is
 <details>
 <summary>History and commit differences</summary>
 
-Browse revisions by date, expand changed paths, and open a commit's diff directly in the timeline. Shown with the Gray theme.
+Browse revisions by date, expand changed paths, and open a commit's diff directly in the timeline. Shown with the Graphite theme.
 
 ![svnbox history timeline with dated commits and an inline commit diff in the Gray theme](resources/screenshots/history.png)
 
@@ -67,7 +67,7 @@ Keep remote paths alongside their local working copies. Browse a repository and 
 <details>
 <summary>Make the workspace yours</summary>
 
-Choose White, Gray, Deep Blue, Teal, Purple, or Orange in Settings. Appearance changes apply immediately.
+Choose White, Graphite, Navy, Teal, Violet, or Orange in Settings. Appearance changes apply immediately.
 
 ![svnbox appearance settings with six workspace themes](resources/screenshots/appearance.png)
 
@@ -101,10 +101,10 @@ The search box filters records already loaded. Use the earlier-history action to
 
 ### Adjust the workspace
 
-Drag the panel dividers to resize the workspace or collapse the inspector. Open Settings with **⌘,** to choose an appearance or configure SVN and an external merge tool. Working-copy context and commit drafts are restored when you reopen svnbox.
+Drag the panel dividers to resize the workspace or collapse the inspector. Open Settings with **⌘,** and choose **General → Language** to switch between English and Simplified Chinese. Language and appearance changes apply immediately and are saved on this Mac. Configure SVN and an external merge tool on the **Tools** page. Working-copy context and commit drafts are restored when you reopen svnbox.
 
 ### Update the application
 
-Choose **仓盒 → 检查更新** or open **Settings → General → Application updates**. Checking does not download anything. Choose Download, then Restart and Install when ready. Running SVN operations must finish before installation, and commit drafts are saved before restarting.
+Choose **svnbox → Check for Updates** or open **Settings → General → Application Updates**. Checking does not download anything. Choose Download, then Restart and Install when ready. Running SVN operations must finish before installation, and commit drafts are saved before restarting.
 
 Updates come from this repository's stable GitHub Releases. Automatic installation requires a signed macOS build. Older versions without this update entry need one manual installation of a version that includes it.

@@ -1,8 +1,9 @@
+import { translate, UI_RESOURCES } from '../shared/i18n';
 const outputLimit = 1024 * 1024;
-const omitted = '[仓盒] 较早的命令输出已省略，仅保留最近约 100 万字符。\n';
 
 export function appendOperationLog(logs: string[], text: string): void {
-	let truncated = logs[0] === omitted;
+	const omitted = translate('operationLogs.svnboxEarlierCommandOutputWasOmittedApproximatelyThe');
+	let truncated = Object.values(UI_RESOURCES).some((resource) => resource.translation.operationLogs.svnboxEarlierCommandOutputWasOmittedApproximatelyThe === logs[0]);
 	if (truncated) {
 		logs.shift();
 	}

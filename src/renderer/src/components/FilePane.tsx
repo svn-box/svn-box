@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { CheckCircle2, ChevronDown, LoaderCircle, MoreHorizontal, Search } from 'lucide-react';
 import { isChanged, isConflict, type FileStatus, type Filter, type WorkingCopy, type WorkspaceSession } from '../../../shared/types';
@@ -9,7 +10,6 @@ import { FileTreeName } from './FileTreeName';
 import { Combobox } from './ui/combobox';
 import { Button } from './ui/button';
 import { fileState, filters, leaf, parent, StatusBadge } from './file-presentation';
-
 export type FileContext = { x: number; y: number; path: string };
 
 export function FilePane({
@@ -27,8 +27,11 @@ export function FilePane({
 	compareFile: (path: string) => void;
 	onTogglePreview: () => void;
 }) {
+	const { t } = useTranslation();
 	const session = useSessionSlice(wc.id, ['currentPath', 'expanded', 'view', 'filter', 'fileSearch']);
+
 	const patchSession = (patch: Partial<WorkspaceSession>) => workspaceStore.getState().patchSession(patch, wc.id);
+
 	const status = useStatus(wc.id);
 	const snapshot = status.data;
 	const currentFile = snapshot?.files.find((file) => file.path === session.currentPath);
@@ -36,7 +39,6 @@ export function FilePane({
 	const fileSearch = session.fileSearch ?? '';
 	const fileHeader = useRef<HTMLDivElement>(null);
 	const pane = useRef<HTMLDivElement>(null);
-
 	const visibleFiles = useMemo(() => {
 		const all = snapshot?.files ?? [];
 		const changes = all.filter((file) => isChanged(file) || file.item === 'unversioned' || file.item === 'ignored');
@@ -83,7 +85,6 @@ export function FilePane({
 			return true;
 		});
 	}, [snapshot, session.view, session.filter, session.expanded, fileSearch]);
-
 	const changedDirectories = useMemo(() => {
 		const paths = new Set<string>();
 		for (const file of snapshot?.files ?? []) {
@@ -99,7 +100,6 @@ export function FilePane({
 		}
 		return paths;
 	}, [snapshot]);
-
 	const treeView = session.filter === 'all' && !fileSearch;
 	const depthOf = useCallback((file: FileStatus) => (treeView && file.path !== '.' ? file.path.split('/').length : 0), [treeView]);
 	const fileListMinWidth = useMemo(() => 458 + visibleFiles.reduce((depth, file) => Math.max(depth, depthOf(file)), 0) * 16, [visibleFiles, depthOf]);
@@ -111,7 +111,6 @@ export function FilePane({
 			header.scrollLeft = viewport.scrollLeft;
 		}
 	}, []);
-
 	useLayoutEffect(() => {
 		const viewport = pane.current?.querySelector<HTMLElement>('.virtual-list');
 		if (!viewport) {
@@ -177,7 +176,7 @@ export function FilePane({
 			className="file-pane"
 			style={height ? { height } : undefined}
 			tabIndex={0}
-			aria-label="文件与历史列表，方向键浏览，空格预览，Shift F10 打开菜单"
+			aria-label={t('filePane.fileAndHistoryListArrowKeysToBrowse')}
 			onKeyDown={navigateList}
 			onScrollCapture={(event) => {
 				const target = event.target as HTMLElement;
@@ -190,56 +189,66 @@ export function FilePane({
 				<label className="changed-toggle">
 					<input
 						type="checkbox"
-						aria-label="仅显示变更"
+						aria-label={t('filePane.changesOnly')}
 						checked={session.view === 'changes'}
 						onChange={(event) => patchSession({ view: event.target.checked ? 'changes' : 'files', filter: 'all' })}
 					/>
-					仅显示变更
+					{t('filePane.changesOnly')}
 				</label>
 				<Combobox
-					label="文件状态筛选"
+					label={t('filePane.fileStatusFilter')}
 					className="status-filter"
 					value={session.filter}
 					onValueChange={(value) => patchSession({ filter: value as Filter })}
-					options={filters.map((filter) => ({ value: filter.value, label: filter.value === 'all' ? '全部状态' : filter.label }))}
+					options={filters.map((filter) => ({
+						value: filter.value,
+						label: filter.value === 'all' ? t('filePane.allStatuses') : filter.label,
+					}))}
 				/>
 				{snapshot?.files.some(isConflict) && (
 					<Button variant="ghost" size="sm" className="conflict-filter" onClick={() => patchSession({ filter: 'conflicted' })}>
 						<span className="conflict-dot" />
-						冲突 {snapshot.files.filter(isConflict).length}
+						{t('filePane.conflicts')}
+						{snapshot.files.filter(isConflict).length}
 					</Button>
 				)}
 				<div className="inline-search">
 					<Search size={12} />
-					<input aria-label="搜索文件" placeholder="筛选路径…" value={fileSearch} onChange={(event) => patchSession({ fileSearch: event.target.value })} />
+					<input
+						aria-label={t('filePane.searchFiles')}
+						placeholder={t('filePane.filterPaths')}
+						value={fileSearch}
+						onChange={(event) => patchSession({ fileSearch: event.target.value })}
+					/>
 				</div>
 			</div>
 			<div className="file-table-header" ref={fileHeader}>
 				<div className="table-head file-columns" style={{ minWidth: fileListMinWidth }}>
 					<span>
-						名称 <ChevronDown size={10} />
+						{t('filePane.name')}
+						<ChevronDown size={10} />
 					</span>
-					<span>状态</span>
-					<span>版本</span>
-					<span>作者</span>
+					<span>{t('common.status')}</span>
+					<span>{t('detailsPanel.revision')}</span>
+					<span>{t('filePane.author')}</span>
 				</div>
 			</div>
 			{status.isFetching && !snapshot ? (
 				<div className="empty">
 					<LoaderCircle className="spin" />
-					扫描工作副本
+					{t('filePane.scanningWorkingCopy')}
 				</div>
 			) : !visibleFiles.length ? (
 				<div className="empty">
 					<CheckCircle2 size={30} />
-					<strong>{snapshot && !changed.length && !fileSearch ? '工作副本干净' : '没有匹配的文件'}</strong>
-					<span>{snapshot ? '本地状态已检查；可检查远端变化或切换筛选' : '刷新以读取本地状态'}</span>
+					<strong>{snapshot && !changed.length && !fileSearch ? t('filePane.workingCopyIsClean') : t('filePane.noMatchingFiles')}</strong>
+					<span>{snapshot ? t('filePane.localStatusCheckedCheckRemoteChangesOrChoose') : t('filePane.refreshToReadLocalStatus')}</span>
 				</div>
 			) : (
 				<VirtualList
 					items={visibleFiles}
 					activeIndex={visibleFiles.findIndex((file) => file.path === session.currentPath)}
-					label="工作副本文件"
+					label={t('filePane.workingCopyFiles')}
 					height={26}
 					minWidth={fileListMinWidth}
 					render={(file) => (
@@ -273,9 +282,9 @@ export function FilePane({
 							/>
 							<span>
 								{file.kind === 'dir' && !isChanged(file) && changedDirectories.has(file.path) ? (
-									<span className="folder-changes">包含变更</span>
+									<span className="folder-changes">{t('filePane.containsChanges')}</span>
 								) : fileState(file) === 'normal' || fileState(file) === 'none' ? (
-									<span className="normal-file-state" aria-label="无本地修改">
+									<span className="normal-file-state" aria-label={t('filePane.noLocalChanges')}>
 										—
 									</span>
 								) : (
@@ -287,7 +296,12 @@ export function FilePane({
 								<span className="truncate muted">{file.author || '—'}</span>
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
-										<button className="row-more" aria-label={`操作 ${file.path}`}>
+										<button
+											className="row-more"
+											aria-label={t('filePane.actionsFor', {
+												path: file.path,
+											})}
+										>
 											<MoreHorizontal size={14} />
 										</button>
 									</DropdownMenuTrigger>
@@ -300,10 +314,12 @@ export function FilePane({
 			)}
 			<div className="list-footer">
 				<span>
-					{visibleFiles.length} 个路径<span className="separator-dot">·</span>
-					{changed.length} 项变更{snapshot?.files.some((file) => file.external) && ' · 外部副本独立管理'}
+					{t('filePane.paths', { count: visibleFiles.length })}
+					<span className="separator-dot">·</span>
+					{t('filePane.changes', { count: changed.length })}
+					{snapshot?.files.some((file) => file.external) && t('filePane.externalsManagedSeparately')}
 				</span>
-				<span>选择文件查看详情 · 提交时选择范围</span>
+				<span>{t('filePane.selectAFileForDetailsChooseTheScope')}</span>
 			</div>
 		</div>
 	);

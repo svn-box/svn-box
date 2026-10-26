@@ -1,9 +1,10 @@
+import { translate } from './i18n';
 import type { CredentialProfile } from './types';
 
 export function svnAddress(value: string): URL {
 	const url = new URL(value);
 	if (!['file:', 'https:', 'http:', 'svn:', 'svn+ssh:'].includes(url.protocol) || url.password || url.search || url.hash || /[\r\n\0]/.test(decodeURIComponent(url.username))) {
-		throw new Error('请输入有效的 SVN 地址；地址可以包含用户名，但不能包含密码、查询参数或片段');
+		throw new Error(translate('auth.enterAValidSvnUrlItMayInclude'));
 	}
 	return url;
 }

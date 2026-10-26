@@ -1,10 +1,11 @@
+import { translate } from '../shared/i18n';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AppError } from '../shared/types';
-
 export class SvnError extends Error {
 	readonly info: AppError;
+
 	constructor(info: AppError) {
 		super(info.message);
 		this.info = info;
@@ -13,7 +14,11 @@ export class SvnError extends Error {
 
 export function classify(detail: string): AppError {
 	if (/E160028|out of date/i.test(detail)) {
-		return { kind: 'outdated', message: '工作副本版本过旧，请先更新并检查冲突', detail: redact(detail) };
+		return {
+			kind: 'outdated',
+			message: translate('runner.theWorkingCopyIsOutOfDateUpdate'),
+			detail: redact(detail),
+		};
 	}
 	const kind = /E170001|E215004|E170013.*auth|Authentication failed|authorization failed/i.test(detail)
 		? 'auth'
@@ -29,19 +34,19 @@ export function classify(detail: string): AppError {
 							? 'conflict'
 							: 'command';
 	const message = {
-		auth: '认证失败，请检查仓库的认证配置',
-		certificate: '服务器证书校验失败，请先核实证书',
-		locked: '工作副本被锁定，可在操作菜单中执行清理',
-		path: '路径无效或不是有效的工作副本',
-		network: '无法连接仓库，请检查网络与仓库地址',
-		conflict: '工作副本存在冲突，需要先处理',
-		command: 'SVN 命令执行失败',
+		auth: translate('runner.authenticationFailedCheckTheRepositorySCredentials'),
+		certificate: translate('runner.serverCertificateVerificationFailedVerifyTheCertificateBefore'),
+		locked: translate('runner.theWorkingCopyIsLockedRunCleanupFrom'),
+		path: translate('runner.thePathIsInvalidOrIsNotA'),
+		network: translate('runner.unableToConnectToTheRepositoryCheckYour'),
+		conflict: translate('runner.resolveTheWorkingCopyConflictsFirst'),
+		command: translate('runner.svnCommandFailed'),
 	}[kind];
 	return { kind, message, detail: redact(detail) };
 }
 
 export function redact(value: string): string {
-	return value.replace(/(https?:\/\/)[^/@\s]+@/g, '$1[凭据已隐藏]@').replace(/(password|passwd|token)([=: ]+)\S+/gi, '$1$2[已隐藏]');
+	return value.replace(/(https?:\/\/)[^/@\s]+@/g, translate('runner.credentialsHidden')).replace(/(password|passwd|token)([=: ]+)\S+/gi, translate('runner.hidden'));
 }
 
 export class Runner {
@@ -62,7 +67,7 @@ export class Runner {
 				await access(candidate);
 				const { stdout } = await this.run(['--version', '--quiet'], { executable: candidate, timeout: 10000 });
 				if (!/^1\.\d+\.\d+/.test(stdout.trim())) {
-					throw new Error('不是可识别的 SVN 可执行文件');
+					throw new Error(translate('runner.theExecutableIsNotARecognizedSvnClient'));
 				}
 				this.executable = candidate;
 				return { path: candidate, version: stdout.trim(), ok: true };
@@ -70,7 +75,12 @@ export class Runner {
 				last = String(error);
 			}
 		}
-		return { path: configured ?? '', version: '', ok: false, error: last || '未找到 SVN，请安装 Subversion 或指定绝对路径' };
+		return {
+			path: configured ?? '',
+			version: '',
+			ok: false,
+			error: last || translate('runner.svnWasNotFoundInstallSubversionOrSpecify'),
+		};
 	}
 
 	run(
@@ -78,15 +88,30 @@ export class Runner {
 		options: { cwd?: string; signal?: AbortSignal; timeout?: number; onData?: (text: string) => void; executable?: string; password?: string } = {},
 	): Promise<{ stdout: string; stderr: string }> {
 		if (this.shuttingDown) {
-			return Promise.reject(new SvnError({ kind: 'cancelled', message: '应用正在关闭' }));
+			return Promise.reject(
+				new SvnError({
+					kind: 'cancelled',
+					message: translate('runner.theAppIsShuttingDown'),
+				}),
+			);
 		}
 		const executable = options.executable ?? this.executable;
 		if (!executable) {
-			return Promise.reject(new SvnError({ kind: 'path', message: '请先在设置中配置 SVN 可执行文件' }));
+			return Promise.reject(
+				new SvnError({
+					kind: 'path',
+					message: translate('runner.configureTheSvnExecutableInSettingsFirst'),
+				}),
+			);
 		}
 		return new Promise((resolve, reject) => {
 			if (options.signal?.aborted) {
-				reject(new SvnError({ kind: 'cancelled', message: '操作已取消；取消不会回滚已完成的修改' }));
+				reject(
+					new SvnError({
+						kind: 'cancelled',
+						message: translate('runner.operationCancelledCompletedChangesWillNotBeUndone'),
+					}),
+				);
 				return;
 			}
 			const child = spawn(executable, args, {
@@ -102,14 +127,17 @@ export class Runner {
 			let timedOut = false;
 			let oversized = false;
 			let killTimer: ReturnType<typeof setTimeout> | undefined;
+
 			const stop = (): void => {
 				child.kill('SIGTERM');
 				killTimer ??= setTimeout(() => child.kill('SIGKILL'), 2000);
 			};
+
 			const abort = (): void => {
 				cancelled = true;
 				stop();
 			};
+
 			const timeout = setTimeout(() => {
 				timedOut = true;
 				stop();
@@ -117,6 +145,7 @@ export class Runner {
 			options.signal?.addEventListener('abort', abort, { once: true });
 			child.stdout.setEncoding('utf8');
 			child.stderr.setEncoding('utf8');
+
 			const consume = (chunk: string, isError: boolean): void => {
 				if (isError) {
 					stderr += chunk;
@@ -129,16 +158,19 @@ export class Runner {
 					stop();
 				}
 			};
+
 			child.stdout.on('data', (chunk: string) => consume(chunk, false));
 			child.stderr.on('data', (chunk: string) => consume(chunk, true));
 			child.stdin.on('error', () => {});
 			child.stdin.end(options.password === undefined ? undefined : `${options.password}\n`);
+
 			const cleanup = (): void => {
 				clearTimeout(timeout);
 				clearTimeout(killTimer);
 				options.signal?.removeEventListener('abort', abort);
 				this.children.delete(child);
 			};
+
 			child.on('error', (error) => {
 				cleanup();
 				reject(new SvnError(classify(String(error))));
@@ -146,13 +178,40 @@ export class Runner {
 			child.on('close', (code) => {
 				cleanup();
 				if (cancelled) {
-					reject(new SvnError({ kind: 'cancelled', message: '操作已取消；取消不会回滚已完成的修改', detail: redact(stderr) }));
+					reject(
+						new SvnError({
+							kind: 'cancelled',
+							message: translate('runner.operationCancelledCompletedChangesWillNotBeUndone'),
+							detail: redact(stderr),
+						}),
+					);
 				} else if (timedOut) {
-					reject(new SvnError({ kind: 'network', message: 'SVN 命令超时，已终止进程', detail: redact(stderr) }));
+					reject(
+						new SvnError({
+							kind: 'network',
+							message: translate('runner.theSvnCommandTimedOutAndItsProcess'),
+							detail: redact(stderr),
+						}),
+					);
 				} else if (oversized) {
-					reject(new SvnError({ kind: 'command', message: '输出超过 32 MiB，请缩小查询范围' }));
+					reject(
+						new SvnError({
+							kind: 'command',
+							message: translate('runner.outputExceedsMibNarrowTheQueryScope'),
+						}),
+					);
 				} else if (code !== 0) {
-					reject(new SvnError(classify(stderr || stdout || `进程退出码 ${code}`)));
+					reject(
+						new SvnError(
+							classify(
+								stderr ||
+									stdout ||
+									translate('runner.processExitedWithCode', {
+										code: code,
+									}),
+							),
+						),
+					);
 				} else {
 					resolve({ stdout, stderr });
 				}

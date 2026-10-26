@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { CircleAlert, History, LoaderCircle, RefreshCw, Search, X } from 'lucide-react';
 import { type WorkingCopy, type WorkspaceSession } from '../../../shared/types';
 import { useHistoryEntries } from '../queries/hooks';
@@ -7,6 +8,7 @@ import { Button } from './ui/button';
 import { HistoryTimeline } from './HistoryTimeline';
 
 export function HistoryPane({ wc, compareFile }: { wc: WorkingCopy; compareFile: (path: string, revision?: number) => void }) {
+	const { t } = useTranslation();
 	const session = useSessionSlice(wc.id, [
 		'historyTarget',
 		'historySearch',
@@ -16,21 +18,23 @@ export function HistoryPane({ wc, compareFile }: { wc: WorkingCopy; compareFile:
 		'historyCollapsedRevisions',
 		'historyPreviewOpen',
 	]);
+
 	const patchSession = (patch: Partial<WorkspaceSession>) => workspaceStore.getState().patchSession(patch, wc.id);
+
 	const repositoryRoot = useWorkspaceStore((state) => state.catalog?.repositories.find((repo) => repo.id === wc.repositoryId)?.rootUrl ?? wc.url);
 	const historySearch = session.historySearch ?? '';
 	const historyKey = `${wc.id}:${session.historyTarget}`;
 	const { history, logs, filteredLogs } = useHistoryEntries(wc.id, session.historyTarget, historySearch);
 	return (
-		<div className="file-pane" tabIndex={-1} aria-label="历史列表">
+		<div className="file-pane" tabIndex={-1} aria-label={t('historyPane.historyList')}>
 			<div className="workspace-toolbar history-filter">
 				<div className="history-target">
 					<History size={13} />
 					<span className="truncate" title={session.historyTarget}>
-						{session.historyTarget === '.' ? '整个工作副本' : session.historyTarget}
+						{session.historyTarget === '.' ? t('historyPane.entireWorkingCopy') : session.historyTarget}
 					</span>
 					{session.historyTarget !== '.' && (
-						<button title="查询整个工作副本" onClick={() => patchSession({ historyTarget: '.' })}>
+						<button title={t('historyPane.queryEntireWorkingCopy')} onClick={() => patchSession({ historyTarget: '.' })}>
 							<X size={12} />
 						</button>
 					)}
@@ -38,8 +42,8 @@ export function HistoryPane({ wc, compareFile }: { wc: WorkingCopy; compareFile:
 				<div className="inline-search">
 					<Search size={12} />
 					<input
-						aria-label="筛选已加载历史"
-						placeholder="筛选已加载记录…"
+						aria-label={t('historyPane.filterLoadedHistory')}
+						placeholder={t('historyPane.filterLoadedRecords')}
 						value={historySearch}
 						onChange={(event) => patchSession({ historySearch: event.target.value })}
 					/>
@@ -48,14 +52,14 @@ export function HistoryPane({ wc, compareFile }: { wc: WorkingCopy; compareFile:
 					variant="outline"
 					size="sm"
 					className="history-refresh"
-					title="重新查询服务器历史"
-					aria-label="重新查询服务器历史"
+					title={t('historyPane.queryServerHistoryAgain')}
+					aria-label={t('historyPane.queryServerHistoryAgain')}
 					aria-busy={history.isFetching || undefined}
 					disabled={history.isFetching}
 					onClick={() => void history.refetch()}
 				>
 					<RefreshCw className={history.isFetching ? 'spin' : ''} />
-					{history.isFetching ? '刷新中' : '刷新'}
+					{history.isFetching ? t('historyPane.refreshing') : t('historyPane.refresh')}
 				</Button>
 			</div>
 			{history.error ? (
@@ -63,18 +67,18 @@ export function HistoryPane({ wc, compareFile }: { wc: WorkingCopy; compareFile:
 					<CircleAlert />
 					{history.error ? errorText(history.error) : ''}
 					<Button variant="outline" onClick={() => void history.refetch()}>
-						重试
+						{t('historyPane.retry')}
 					</Button>
 				</div>
 			) : !logs && history.isFetching ? (
 				<div className="empty">
 					<LoaderCircle className="spin" />
-					正在查询服务器历史
+					{t('historyPane.queryingServerHistory')}
 				</div>
 			) : !filteredLogs.length ? (
 				<div className="empty">
 					<History size={28} />
-					{historySearch ? '已加载记录中没有匹配项' : '此路径尚无历史记录'}
+					{historySearch ? t('historyPane.noMatchesInLoadedRecords') : t('historyPane.noHistoryForThisPath')}
 				</div>
 			) : (
 				<HistoryTimeline
@@ -89,10 +93,10 @@ export function HistoryPane({ wc, compareFile }: { wc: WorkingCopy; compareFile:
 				/>
 			)}
 			<div className="list-footer">
-				<span>已加载 {logs?.length ?? 0} 条 · 输入框仅筛选已加载记录</span>
+				<span>{t('historyPane.loadedRecords', { count: logs?.length ?? 0 })}</span>
 				<Button variant="ghost" size="sm" disabled={history.isFetching || !history.hasNextPage || !logs?.length} onClick={() => void history.fetchNextPage()}>
 					{history.isFetching && <LoaderCircle className="spin" />}
-					{!history.hasNextPage ? '已到历史起点' : '从服务器加载更早记录'}
+					{!history.hasNextPage ? t('historyPane.beginningOfHistoryReached') : t('historyPane.loadEarlierRecordsFromServer')}
 				</Button>
 			</div>
 		</div>

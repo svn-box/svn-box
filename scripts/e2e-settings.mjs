@@ -57,7 +57,7 @@ try {
 	const general = dialog.getByRole('tab', { name: '通用设置', exact: true });
 	const tools = dialog.getByRole('tab', { name: '工具', exact: true });
 	assert.equal(await general.getAttribute('aria-selected'), 'true');
-	assert.equal(await dialog.getByRole('combobox', { name: '界面语言', exact: true }).isDisabled(), true);
+	assert.equal(await dialog.getByRole('combobox', { name: '界面语言', exact: true }).isDisabled(), false);
 	assert.equal(await dialog.getByLabel('可执行文件路径').count(), 0);
 	assert.equal(await dialog.locator('input[type="password"]').count(), 0);
 	await chooseTheme('light', '白色');

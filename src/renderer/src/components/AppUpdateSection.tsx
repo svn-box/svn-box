@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { Download, LoaderCircle, RefreshCw } from 'lucide-react';
 import type { AppUpdateAction, AppUpdateState } from '../../../shared/app-updates';
@@ -9,6 +10,7 @@ import { workspaceStore } from '../state/workspace';
 import { Button } from './ui/button';
 
 export function AppUpdateSection({ focusRequest = 0 }: { focusRequest?: number }) {
+	const { t } = useTranslation();
 	const [update, setUpdate] = useState<AppUpdateState>();
 	const [pending, setPending] = useState(false);
 	const section = useRef<HTMLDivElement>(null);
@@ -19,41 +21,49 @@ export function AppUpdateSection({ focusRequest = 0 }: { focusRequest?: number }
 	const action = phase === 'downloaded' ? 'install' : download ? 'download' : 'check';
 	const label =
 		phase === 'checking'
-			? '正在检查…'
+			? t('appUpdateSection.checking')
 			: phase === 'downloading'
-				? '正在下载…'
+				? t('appUpdateSection.downloading')
 				: phase === 'installing'
-					? '正在重新启动…'
+					? t('appUpdateSection.restarting')
 					: action === 'install'
-						? '重启并安装'
+						? t('appUpdateSection.restartAndInstall')
 						: download
-							? '下载更新'
-							: '检查更新';
+							? t('appUpdateSection.downloadUpdate')
+							: t('desktop.checkForUpdates');
 	const message =
-		update?.message ??
+		(update?.messageKey ? t(update.messageKey) : update?.message) ??
 		(phase === 'current'
-			? '已是最新版本'
+			? t('appUpdateSection.youReUpToDate')
 			: phase === 'checking'
-				? '正在检查可用版本…'
+				? t('appUpdateSection.checkingForAvailableVersions')
 				: phase === 'available'
-					? `发现新版本 ${update?.version}`
+					? t('appUpdateSection.newVersionAvailable', {
+							value: update?.version,
+						})
 					: phase === 'downloaded'
 						? busy
-							? 'SVN 操作进行中，完成后可安装更新。'
-							: `版本 ${update?.version} 已下载，重新启动即可安装。`
+							? t('appUpdateSection.anSvnOperationIsRunningInstallTheUpdate')
+							: t('appUpdateSection.versionIsDownloadedRestartToInstall', {
+									value: update?.version,
+								})
 						: phase === 'downloading'
-							? `正在下载 ${update?.version} · ${Math.round(update?.percent ?? 0)}%`
+							? t('appUpdateSection.downloading2', {
+									value: update?.version,
+									value2: Math.round(update?.percent ?? 0),
+								})
 							: phase === 'installing'
-								? '正在准备安装更新…'
-								: '手动检查新版本，下载后可重新启动安装。');
-
+								? t('appUpdateSection.preparingToInstallTheUpdate')
+								: t('appUpdateSection.checkForNewVersionsManuallyThenDownloadAnd'));
 	useEffect(() => {
 		let active = true;
+
 		const accept = (next: AppUpdateState) => {
 			if (active) {
 				setUpdate((previous) => (!previous || next.revision >= previous.revision ? next : previous));
 			}
 		};
+
 		const unsubscribe = api.onAppUpdate(accept);
 		void api.call('appUpdate', { action: 'status' }).then(accept).catch(notifyError);
 		return () => {
@@ -61,7 +71,6 @@ export function AppUpdateSection({ focusRequest = 0 }: { focusRequest?: number }
 			unsubscribe();
 		};
 	}, []);
-
 	useEffect(() => {
 		if (focusRequest || (phase && !['idle', 'disabled', 'current'].includes(phase))) {
 			section.current?.scrollIntoView({ block: 'nearest' });
@@ -86,16 +95,25 @@ export function AppUpdateSection({ focusRequest = 0 }: { focusRequest?: number }
 	return (
 		<div className="settings-row settings-app-update" ref={section}>
 			<div className="settings-row-copy">
-				<h3>应用更新{update && <span className="settings-app-version">当前版本 {update.currentVersion}</span>}</h3>
+				<h3>
+					{t('appUpdateSection.appUpdates')}
+					{update && (
+						<span className="settings-app-version">
+							{t('appUpdateSection.currentVersion', {
+								currentVersion: update.currentVersion,
+							})}
+						</span>
+					)}
+				</h3>
 				<p role="status" className={update?.message && phase !== 'disabled' ? 'error-text' : undefined}>
 					{message}
 				</p>
-				{phase === 'downloading' && <progress aria-label="应用更新下载进度" max={100} value={update?.percent ?? 0} />}
+				{phase === 'downloading' && <progress aria-label={t('appUpdateSection.appUpdateDownloadProgress')} max={100} value={update?.percent ?? 0} />}
 			</div>
 			<div className="settings-update-actions">
 				{update?.version && (
 					<Button variant="ghost" size="sm" disabled={phase === 'installing'} onClick={() => void run('release')}>
-						发布说明
+						{t('appUpdateSection.releaseNotes')}
 					</Button>
 				)}
 				<Button

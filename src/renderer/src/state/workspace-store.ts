@@ -1,13 +1,13 @@
+import { operationAction } from '../../../shared/operation-log';
+import { translate } from '../../../shared/i18n';
 import { createStore } from 'zustand/vanilla';
 import { emptySession, isChanged, isConflict, type AppState, type Operation, type Snapshot, type WorkspaceSession } from '../../../shared/types';
 import type { ClientCall } from '../lib/api-types';
-
 export type WorkspaceCatalog = Omit<AppState, 'sessions' | 'activeId'>;
 export interface SessionCheckpoint {
 	draft: number;
 	selected: number;
 }
-
 interface WorkspaceStoreState {
 	catalog?: WorkspaceCatalog;
 	activeId?: string;
@@ -34,7 +34,6 @@ interface WorkspaceStoreState {
 	setPanel: (panel: 'showOperations' | 'showDetails', value: boolean | ((previous: boolean) => boolean)) => void;
 	setSize: (pane: 'sidebarWidth' | 'detailsWidth' | 'listHeight', value: number | ((previous: number) => number)) => void;
 }
-
 export const blankSession = emptySession();
 
 function connectionIdentity(catalog?: WorkspaceCatalog): string {
@@ -58,9 +57,10 @@ export function createWorkspaceStore(call: ClientCall, onError: (error: unknown)
 		updateIntents: {},
 		showOperations: false,
 		showDetails: true,
-		sidebarWidth: 232,
+		sidebarWidth: 280,
 		detailsWidth: 236,
 		listHeight: 300,
+
 		accept(next, activate = false) {
 			const { sessions: incoming, activeId, ...catalog } = next;
 			const previous = get();
@@ -119,7 +119,13 @@ export function createWorkspaceStore(call: ClientCall, onError: (error: unknown)
 							return;
 						}
 						set((state) => ({
-							sessionWrites: { ...state.sessionWrites, [wcId]: { ...state.sessionWrites[wcId], error: (error as Error)?.message ?? '会话保存失败' } },
+							sessionWrites: {
+								...state.sessionWrites,
+								[wcId]: {
+									...state.sessionWrites[wcId],
+									error: (error as Error)?.message ?? translate('workspaceStore.unableToSaveSession'),
+								},
+							},
 						}));
 						onError(error);
 					},
@@ -135,6 +141,7 @@ export function createWorkspaceStore(call: ClientCall, onError: (error: unknown)
 
 		async flushSessions(wcId) {
 			const pending = () => (wcId ? [...(writes.get(wcId) ?? [])] : [...writes.values()].flatMap((tasks) => [...tasks]));
+
 			while (pending().length) {
 				await Promise.all(pending());
 			}
@@ -153,7 +160,7 @@ export function createWorkspaceStore(call: ClientCall, onError: (error: unknown)
 				get().accept(next);
 			}
 			const id = operation.wcId;
-			if (operation.state !== 'success' || operation.label !== '提交变更' || !id || !captured) {
+			if (operation.state !== 'success' || operationAction(operation) !== 'commit' || !id || !captured) {
 				return;
 			}
 			const saved = next.sessions[id];

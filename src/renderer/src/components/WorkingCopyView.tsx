@@ -1,17 +1,15 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, type ReactNode } from 'react';
 import { CircleAlert, Code2 } from 'lucide-react';
 import { isChanged, type Action, type WorkingCopy } from '../../../shared/types';
 import { useDiff, useStatus } from '../queries/hooks';
 import { useSessionSlice, useWorkspaceStore } from '../state/workspace';
 import { errorText } from '../lib/api';
-
 import { Button } from './ui/button';
-
 import { FilePane, type FileContext } from './FilePane';
 import { HistoryPane } from './HistoryPane';
 import { DetailsPanel } from './DetailsPanel';
 import { DiffView } from './DiffView';
-
 import { resizePanel as resize } from '../lib/panel-resize';
 
 export function WorkingCopyView({
@@ -35,6 +33,7 @@ export function WorkingCopyView({
 	requestReview: (action: Action, paths: string[]) => unknown;
 	openCommit: () => void;
 }) {
+	const { t } = useTranslation();
 	const session = useSessionSlice(wc.id, ['view', 'currentPath']);
 	const showDetails = useWorkspaceStore((store) => store.showDetails);
 	const listHeight = useWorkspaceStore((store) => store.listHeight);
@@ -58,7 +57,7 @@ export function WorkingCopyView({
 					<CircleAlert size={16} />
 					<span>{currentError}</span>
 					<Button variant="outline" size="sm" onClick={() => void refresh(wc.id)}>
-						重试
+						{t('historyPane.retry')}
 					</Button>
 				</div>
 			)}
@@ -82,7 +81,7 @@ export function WorkingCopyView({
 							<div
 								className="horizontal-resizer"
 								role="separator"
-								aria-label="调整文件与差异高度"
+								aria-label={t('workingCopyView.resizeFileListAndDiff')}
 								aria-orientation="horizontal"
 								onPointerDown={(event) => resize(event, 'list')}
 							/>
@@ -93,7 +92,13 @@ export function WorkingCopyView({
 				</div>
 				{showDetails && (
 					<>
-						<div className="resizer" role="separator" aria-label="调整详情宽度" aria-orientation="vertical" onPointerDown={(event) => resize(event, 'details')} />
+						<div
+							className="resizer"
+							role="separator"
+							aria-label={t('workingCopyView.resizeInspector')}
+							aria-orientation="vertical"
+							onPointerDown={(event) => resize(event, 'details')}
+						/>
 						<DetailsPanel wc={wc} requestReview={requestReview} refresh={refresh} />{' '}
 					</>
 				)}
@@ -103,12 +108,14 @@ export function WorkingCopyView({
 }
 
 function FileComparison({ wc, path, scan, onClose, compareFile }: { wc: WorkingCopy; path: string; scan?: string; onClose: () => void; compareFile: (path: string) => void }) {
+	const { t } = useTranslation();
 	const diff = useDiff(wc.id, path, scan);
 	const file = useStatus(wc.id).data?.files.find((entry) => entry.path === path);
-	return <DiffView {...diff} onClose={onClose} onCompare={file?.kind === 'file' ? () => compareFile(path) : undefined} title={path || '差异预览'} />;
+	return <DiffView {...diff} onClose={onClose} onCompare={file?.kind === 'file' ? () => compareFile(path) : undefined} title={path || t('diffView.diffPreview')} />;
 }
 
 function DraftBar({ wcId, openCommit }: { wcId: string; openCommit: () => void }) {
+	const { t } = useTranslation();
 	const draft = useWorkspaceStore((state) => state.sessions[wcId]?.draft ?? '');
 	if (!draft) {
 		return null;
@@ -119,11 +126,12 @@ function DraftBar({ wcId, openCommit }: { wcId: string; openCommit: () => void }
 				<span className="draft-icon">
 					<Code2 size={15} />
 				</span>
-				<strong>提交草稿</strong>
+				<strong>{t('workingCopyView.commitDraft')}</strong>
 				<span className="draft-preview">{draft.split('\n')[0]}</span>
 			</div>
 			<Button variant="ghost" size="sm" onClick={openCommit}>
-				继续编辑<kbd>⌘↵</kbd>
+				{t('workingCopyView.continueEditing')}
+				<kbd>⌘↵</kbd>
 			</Button>
 		</div>
 	);

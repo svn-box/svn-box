@@ -1,8 +1,7 @@
+import { translate } from '../../../shared/i18n';
 import type { AuthenticationContext } from '../../../shared/types';
-
 export type AuthenticationChoice = 'saved' | 'existing';
 export type AuthenticationIntent = 'connect' | 'edit';
-
 interface AuthenticationRequest {
 	id: string;
 	context: AuthenticationContext;
@@ -12,10 +11,13 @@ interface AuthenticationRequest {
 	reject: (error: unknown) => void;
 	consumers: number;
 }
-
 let requests: AuthenticationRequest[] = [];
 const listeners = new Set<() => void>();
-const cancelled = () => ({ kind: 'cancelled', message: '已取消连接认证' });
+
+const cancelled = () => ({
+	kind: 'cancelled',
+	message: translate('authentication.connectionAuthenticationCancelled'),
+});
 
 export function requestAuthentication(context: AuthenticationContext | null, signal?: AbortSignal, intent: AuthenticationIntent = 'connect'): Promise<AuthenticationChoice> {
 	if (signal?.aborted) {
@@ -46,11 +48,13 @@ export function requestAuthentication(context: AuthenticationContext | null, sig
 	active.consumers++;
 	return new Promise((resolve, reject) => {
 		let settled = false;
+
 		const release = () => {
 			settled = true;
 			signal?.removeEventListener('abort', abort);
 			active.consumers--;
 		};
+
 		const abort = () => {
 			if (settled) {
 				return;
@@ -63,6 +67,7 @@ export function requestAuthentication(context: AuthenticationContext | null, sig
 				active.reject(cancelled());
 			}
 		};
+
 		signal?.addEventListener('abort', abort, { once: true });
 		active.promise.then(
 			(choice) => {

@@ -1,9 +1,13 @@
+import { translate } from '../../../shared/i18n';
 import { isCancellableRpc, type AppError, type RpcMap, type RpcName } from '../../../shared/types';
 import { requestAuthentication } from './authentication';
 import type { ClientOptions } from './api-types';
-
 const existingConnections = new Set<string>();
-const cancelled = () => ({ kind: 'cancelled', message: '连接已停止' });
+
+const cancelled = () => ({
+	kind: 'cancelled',
+	message: translate('common.connectionStopped'),
+});
 
 function checkSignal(signal?: AbortSignal): void {
 	if (signal?.aborted) {
@@ -35,6 +39,7 @@ function invoke<K extends RpcName>(method: K, input: RpcMap[K]['input'], signal?
 			void window.svnbox.call('cancelRequest', { id: requestId }).catch(() => {});
 			reject(cancelled());
 		};
+
 		signal?.addEventListener('abort', abort, { once: true });
 		window.svnbox
 			.call(method, input, { requestId })
@@ -48,9 +53,13 @@ function invoke<K extends RpcName>(method: K, input: RpcMap[K]['input'], signal?
 
 export const api = {
 	...window.svnbox,
+
 	async call<K extends RpcName>(method: K, input: RpcMap[K]['input'], options: ClientOptions = {}): Promise<RpcMap[K]['output']> {
 		if (options.signal && !isCancellableRpc(method)) {
-			throw { kind: 'validation', message: '此操作使用操作记录中的取消入口' };
+			throw {
+				kind: 'validation',
+				message: translate('api.cancelThisOperationFromTheOperationLog'),
+			};
 		}
 		checkSignal(options.signal);
 		const target = authenticationTarget(method, input);

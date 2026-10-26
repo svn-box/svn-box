@@ -1,9 +1,9 @@
+import { normalizeUiLanguage, translate, UI_LANGUAGE } from '../shared/i18n';
 import { mkdir, readFile, rename, writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AppState } from '../shared/types';
 import { normalizeTheme } from '../shared/themes';
 import { credentialRoot } from '../shared/auth';
-
 export class Store {
 	private data: AppState = {
 		version: 1,
@@ -14,7 +14,12 @@ export class Store {
 		sessions: {},
 		credentials: [],
 		recentMessages: [],
-		settings: { svnPath: '', theme: 'light', mergeTool: '' },
+		settings: {
+			svnPath: '',
+			theme: 'light',
+			mergeTool: '',
+			language: UI_LANGUAGE,
+		},
 	};
 	private tail: Promise<void> = Promise.resolve();
 	readonly directory: string;
@@ -28,9 +33,17 @@ export class Store {
 		try {
 			const data = JSON.parse(await readFile(join(this.directory, 'workspace.json'), 'utf8'));
 			if (data.version !== 1 || !Array.isArray(data.workingCopies) || !data.sessions || !data.settings) {
-				throw new Error('不支持的数据格式，请保留 workspace.json 后检查');
+				throw new Error(translate('store.unsupportedDataFormatPreserveWorkspaceJsonBeforeInvestigating'));
 			}
-			this.data = { ...data, bookmarks: data.bookmarks ?? [], settings: { ...data.settings, theme: normalizeTheme(data.settings.theme) } };
+			this.data = {
+				...data,
+				bookmarks: data.bookmarks ?? [],
+				settings: {
+					...data.settings,
+					theme: normalizeTheme(data.settings.theme),
+					language: normalizeUiLanguage(data.settings.language),
+				},
+			};
 			for (const profile of this.data.credentials) {
 				const repository = this.data.repositories.find((repo) => repo.credentialId === profile.id);
 				if (!profile.rootUrl && repository) {

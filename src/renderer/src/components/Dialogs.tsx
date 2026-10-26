@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { isCancelledError, useQuery } from '@tanstack/react-query';
 import { svnQueries } from '../queries/runtime';
 import { workspaceStore } from '../state/workspace';
@@ -9,14 +10,12 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { VirtualList } from './VirtualList';
 import { FileIcon } from './FileIcon';
-
 import { api, errorText } from '../lib/api';
 import { notifyError } from '../lib/feedback';
 import { toast } from 'sonner';
 import { Combobox } from './ui/combobox';
 import { Select } from './ui/select';
 import { requestAuthentication } from '../lib/authentication';
-
 export { api, errorText } from '../lib/api';
 
 export function Modal({
@@ -34,6 +33,7 @@ export function Modal({
 	wide?: boolean;
 	className?: string;
 }) {
+	useTranslation();
 	return (
 		<Dialog
 			open
@@ -55,6 +55,7 @@ export function Modal({
 export { SettingsDialog } from './SettingsDialog';
 
 function RemoteSurface({ children, title, description }: React.ComponentProps<typeof Modal>) {
+	useTranslation();
 	return (
 		<section className="remote-surface">
 			<div className="remote-surface-heading">
@@ -85,6 +86,7 @@ export function RemoteDialog({
 	onState: (state: AppState) => void;
 	onClose: () => void;
 }) {
+	const { t } = useTranslation();
 	const initial = state.repositories.find((repo) => repo.id === initialRepositoryId);
 	const [repositoryId, setRepositoryId] = useState(initial?.id ?? '');
 	const [url, setUrl] = useState(initialUrl ?? initial?.rootUrl ?? '');
@@ -157,11 +159,16 @@ export function RemoteDialog({
 			setListOptions(options);
 			await svnQueries.client.cancelQueries({ queryKey: options.queryKey, exact: true });
 			if (controller.signal.aborted) {
-				throw { kind: 'cancelled', message: '连接已停止' };
+				throw {
+					kind: 'cancelled',
+					message: t('common.connectionStopped'),
+				};
 			}
+
 			const abort = () => {
 				void svnQueries.client.cancelQueries({ queryKey: options.queryKey, exact: true });
 			};
+
 			controller.signal.addEventListener('abort', abort, { once: true });
 			try {
 				await svnQueries.client.fetchQuery({ ...options, staleTime: 0 });
@@ -190,6 +197,7 @@ export function RemoteDialog({
 			}
 		}
 	}
+
 	async function bookmark() {
 		connection.current?.abort();
 		const controller = new AbortController();
@@ -205,7 +213,7 @@ export function RemoteDialog({
 				return;
 			}
 			onState(next);
-			toast.success('仓库书签已保存');
+			toast.success(t('dialogs.repositoryBookmarkSaved'));
 			const repo = next.repositories.find((repo) => url.startsWith(repo.rootUrl));
 			if (repo) {
 				setRepositoryId(repo.id);
@@ -239,7 +247,7 @@ export function RemoteDialog({
 		setError('');
 		try {
 			if (!folder || /[/\\\r\n]/.test(folder) || folder === '.' || folder === '..') {
-				throw new Error('请填写有效的目标文件夹名称');
+				throw new Error(t('dialogs.enterAValidDestinationFolderName'));
 			}
 			await api.call(
 				'checkout',
@@ -269,13 +277,19 @@ export function RemoteDialog({
 	const Surface = embedded ? RemoteSurface : Modal;
 	const root = state.repositories.find((repo) => repo.id === repositoryId)?.rootUrl;
 	return (
-		<Surface title="仓库浏览与检出" description="逐层浏览远端目录，检出为独立的本地工作副本" wide onClose={close}>
+		<Surface title={t('dialogs.browseRepositoryAndCheckOut')} description={t('dialogs.browseRemoteDirectoriesAndCheckOutAnIndependent')} wide onClose={close}>
 			<div className="remote-top">
 				<Server size={18} />
 				<Combobox
-					label="仓库"
+					label={t('dialogs.repository')}
 					value={repositoryId}
-					options={[{ value: '', label: '添加新的仓库地址' }, ...state.repositories.map((repo) => ({ value: repo.id, label: repo.name, description: repo.rootUrl }))]}
+					options={[
+						{
+							value: '',
+							label: t('dialogs.addANewRepositoryUrl'),
+						},
+						...state.repositories.map((repo) => ({ value: repo.id, label: repo.name, description: repo.rootUrl })),
+					]}
 					onValueChange={(id) => {
 						if (embedded && onRepositoryChange) {
 							onRepositoryChange(id || undefined);
@@ -295,7 +309,7 @@ export function RemoteDialog({
 			</div>
 			<div className="input-action">
 				<input
-					aria-label="仓库 URL"
+					aria-label={t('detailsPanel.repositoryUrl')}
 					value={url}
 					onChange={(event) => {
 						if (connection.current) {
@@ -322,18 +336,25 @@ export function RemoteDialog({
 					}}
 				>
 					{busy ? <Square /> : <RefreshCw />}
-					{busy ? (activeAction === 'checkout' ? '取消检出' : '停止连接') : '浏览'}
+					{busy ? (activeAction === 'checkout' ? t('dialogs.cancelCheckout') : t('dialogs.stopConnecting')) : t('dialogs.browse')}
 				</Button>
-				<Button variant="ghost" size="icon" aria-label="此连接的认证" title="此连接的认证" disabled={!url} onClick={() => void authenticate()}>
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label={t('dialogs.connectionCredentials')}
+					title={t('dialogs.connectionCredentials')}
+					disabled={!url}
+					onClick={() => void authenticate()}
+				>
 					<KeyRound />
 				</Button>
 			</div>
 			{!repositoryId && (
 				<div className="bookmark-form">
-					<input value={name} onChange={(event) => setName(event.target.value)} placeholder="书签名称（可选）" />
+					<input value={name} onChange={(event) => setName(event.target.value)} placeholder={t('dialogs.bookmarkNameOptional')} />
 					<Button variant="outline" disabled={busy || !url} onClick={() => void bookmark()}>
 						<Plus />
-						验证并保存书签
+						{t('dialogs.verifyAndSaveBookmark')}
 					</Button>
 				</div>
 			)}
@@ -341,7 +362,7 @@ export function RemoteDialog({
 				<Button
 					variant="ghost"
 					size="icon"
-					aria-label="上一级目录"
+					aria-label={t('dialogs.parentDirectory')}
 					disabled={!loadedUrl || loadedUrl === root || busy}
 					onClick={() => {
 						const target = new URL(loadedUrl);
@@ -351,62 +372,66 @@ export function RemoteDialog({
 				>
 					<ArrowLeft />
 				</Button>
-				<span className="truncate">{loadedUrl || '尚未连接仓库'}</span>
-				<span className="muted">{entries.length} 项</span>
+				<span className="truncate">{loadedUrl || t('dialogs.notConnectedToARepository')}</span>
+				<span className="muted">
+					{t('dialogs.items', {
+						count: entries.length,
+					})}
+				</span>
 				<Button
 					variant="ghost"
 					size="sm"
 					disabled={!loadedUrl || !repositoryId || busy}
-					title="将此远端路径保存到左侧仓库节点下"
+					title={t('dialogs.saveThisRemotePathUnderItsRepositoryIn')}
 					onClick={() => {
-						const name = decodeURIComponent(loadedUrl.replace(/\/$/, '').split('/').at(-1) || '仓库根目录');
+						const name = decodeURIComponent(loadedUrl.replace(/\/$/, '').split('/').at(-1) || t('svn.repositoryRoot'));
 						void api
 							.call('bookmark', { repositoryId, url: loadedUrl, name })
 							.then((next) => {
 								onState(next);
-								toast.success('远端路径已保存到侧栏');
+								toast.success(t('dialogs.remotePathSavedToTheSidebar'));
 							})
 							.catch(notifyError);
 					}}
 				>
 					<Star />
-					保存路径
+					{t('dialogs.savePath')}
 				</Button>
 			</div>
 			<div className="remote-list">
 				{busy ? (
 					<div className="empty">
 						<LoaderCircle className="spin" />
-						{activeAction === 'checkout' ? '正在准备检出' : '正在连接仓库'}
-						<span className="hint">可使用上方按钮停止，或重新输入连接认证。</span>
+						{activeAction === 'checkout' ? t('dialogs.preparingCheckout') : t('dialogs.connectingToRepository')}
+						<span className="hint">{t('dialogs.useTheButtonAboveToStopOrEnter')}</span>
 					</div>
 				) : stopped ? (
 					<div className="empty">
 						<Square size={24} />
-						<strong>连接已停止</strong>
-						<span>可以修改地址或认证后重新连接。</span>
+						<strong>{t('common.connectionStopped')}</strong>
+						<span>{t('dialogs.changeTheUrlOrCredentialsAndReconnect')}</span>
 						<Button variant="outline" size="sm" onClick={() => void browse(url)}>
-							重新连接
+							{t('dialogs.reconnect')}
 						</Button>
 					</div>
 				) : error ? (
 					<div className="empty error-text">
 						<Server size={24} />
-						<strong>暂时无法连接仓库</strong>
+						<strong>{t('dialogs.unableToConnectToRepository')}</strong>
 						<span>{error.split('\n')[0]}</span>
 						<Button variant="outline" size="sm" onClick={() => void browse(url)}>
-							重新连接
+							{t('dialogs.reconnect')}
 						</Button>
 					</div>
 				) : !entries.length ? (
 					<div className="empty">
 						<Folder size={28} />
-						此目录为空，或尚未浏览
+						{t('dialogs.thisDirectoryIsEmptyOrHasNotBeen')}
 					</div>
 				) : (
 					<VirtualList
 						items={entries}
-						label="远端目录"
+						label={t('dialogs.remoteDirectory')}
 						render={(entry) => (
 							<button
 								className="remote-entry"
@@ -428,9 +453,9 @@ export function RemoteDialog({
 			</div>
 			<div className="checkout-fields">
 				<label>
-					检出到父文件夹
+					{t('dialogs.checkOutToParentFolder')}
 					<div className="input-action">
-						<input value={parent} onChange={(event) => setParent(event.target.value)} placeholder="选择本地文件夹" />
+						<input value={parent} onChange={(event) => setParent(event.target.value)} placeholder={t('dialogs.chooseALocalFolder')} />
 						<Button
 							variant="outline"
 							onClick={() => {
@@ -441,39 +466,51 @@ export function RemoteDialog({
 								});
 							}}
 						>
-							选择…
+							{t('dialogs.choose')}
 						</Button>
 					</div>
 				</label>
 				<div className="form-grid">
 					<label>
-						新文件夹名称
+						{t('dialogs.newFolderName')}
 						<input value={folder} onChange={(event) => setFolder(event.target.value)} />
 					</label>
 					<label>
-						检出深度
+						{t('dialogs.checkoutDepth')}
 						<Select
-							label="检出深度"
+							label={t('dialogs.checkoutDepth')}
 							value={depth}
 							options={[
-								{ value: 'infinity', label: '完整目录（递归）' },
-								{ value: 'immediates', label: '直接子项' },
-								{ value: 'files', label: '仅当前层文件' },
-								{ value: 'empty', label: '空目录' },
+								{
+									value: 'infinity',
+									label: t('dialogs.fullDirectoryRecursive'),
+								},
+								{
+									value: 'immediates',
+									label: t('dialogs.immediateChildren'),
+								},
+								{
+									value: 'files',
+									label: t('dialogs.filesAtThisLevelOnly'),
+								},
+								{
+									value: 'empty',
+									label: t('dialogs.emptyDirectory'),
+								},
 							]}
 							onValueChange={(value) => setDepth(value as typeof depth)}
 						/>
 					</label>
 				</div>
-				<p className="hint">目标文件夹必须尚不存在。首次检出跳过 externals，可将外部工作副本单独管理。取消后可能留下部分检出内容。</p>
+				<p className="hint">{t('dialogs.theDestinationFolderMustNotExistInitialCheckout')}</p>
 			</div>
 			<div className="dialog-footer">
 				<Button variant="outline" onClick={close}>
-					取消
+					{t('common.cancel')}
 				</Button>
 				<Button disabled={!loadedUrl || !parent || !folder || busy || url !== loadedUrl} onClick={() => void checkout()}>
 					<Download />
-					检出此目录
+					{t('dialogs.checkOutThisDirectory')}
 				</Button>
 			</div>
 		</Surface>
@@ -481,25 +518,35 @@ export function RemoteDialog({
 }
 
 export function ReviewDialog({ review, onClose, onExecute }: { review: Review; onClose: () => void; onExecute: () => Promise<void> }) {
+	const { t } = useTranslation();
 	const [busy, setBusy] = useState(false);
 	const [checked, setChecked] = useState(false);
 	const dangerous = ['revert', 'delete', 'resolve'].includes(review.action);
 	const labels: Record<Review['action'], string> = {
-		commit: '确认提交',
-		update: '更新工作副本',
-		add: '加入版本控制',
-		rename: '确认重命名',
-		delete: '删除磁盘内容',
-		ignore: '设置忽略',
-		revert: '还原所选变更',
-		resolve: '标记为已解决',
-		cleanup: '清理工作副本锁',
+		commit: t('dialogs.confirmCommit'),
+		update: t('operations.update'),
+		add: t('operations.add'),
+		rename: t('dialogs.confirmRename'),
+		delete: t('dialogs.deleteDiskContent'),
+		ignore: t('dialogs.setIgnoreRule'),
+		revert: t('dialogs.revertSelectedLocalChanges'),
+		resolve: t('dialogs.markAsResolved'),
+		cleanup: t('operations.cleanup'),
 	};
 	return (
-		<Modal title={review.action === 'commit' ? '提交审阅' : '确认操作范围'} description="执行前将重新检查文件及属性；状态变化时必须重新审阅。" wide onClose={onClose}>
+		<Modal
+			title={review.action === 'commit' ? t('dialogs.commitReview') : t('dialogs.confirmOperationScope')}
+			description={t('dialogs.filesAndPropertiesWillBeCheckedAgainBefore')}
+			wide
+			onClose={onClose}
+		>
 			<div className="review-summary">
 				<span>{labels[review.action]}</span>
-				<strong>{review.paths.length} 个明确目标</strong>
+				<strong>
+					{t('dialogs.explicitTargets', {
+						count: review.paths.length,
+					})}
+				</strong>
 			</div>
 			{review.message && <pre className="review-message">{review.message}</pre>}
 			{review.warning && <div className="warning-box">{review.warning}</div>}
@@ -512,27 +559,27 @@ export function ReviewDialog({ review, onClose, onExecute }: { review: Review; o
 			)}
 			<div className="review-paths">
 				<VirtualList
-					items={review.paths.length ? review.paths : ['.（整个工作副本，跳过 externals）']}
-					label="实际操作范围"
+					items={review.paths.length ? review.paths : [t('dialogs.entireWorkingCopyExcludingExternals')]}
+					label={t('dialogs.actualOperationScope')}
 					height={30}
 					render={(path) => (
 						<div className="review-path">
-							<span className="path-status">{review.requested.includes(path) ? '所选' : '关联'}</span>
+							<span className="path-status">{review.requested.includes(path) ? t('dialogs.selected') : t('dialogs.related')}</span>
 							<code>{path}</code>
 						</div>
 					)}
 				/>
 			</div>
-			{review.action === 'commit' && <p className="hint">仅提交上方列出的路径。关联的父目录、目录内容和移动两端会一并列出，请核对后确认。</p>}
+			{review.action === 'commit' && <p className="hint">{t('dialogs.onlyThePathsListedAboveWillBeCommitted')}</p>}
 			{dangerous && (
 				<label className="confirm-check">
 					<input type="checkbox" checked={checked} onChange={(event) => setChecked(event.target.checked)} />
-					我已检查实际范围并理解上述影响
+					{t('dialogs.iReviewedTheActualScopeAndUnderstandThese')}
 				</label>
 			)}
 			<div className="dialog-footer">
 				<Button variant="outline" disabled={busy} onClick={onClose}>
-					返回检查
+					{t('dialogs.backToReview')}
 				</Button>
 				<Button
 					variant={dangerous ? 'destructive' : 'default'}

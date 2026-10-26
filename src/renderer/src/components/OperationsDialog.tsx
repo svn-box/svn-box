@@ -1,3 +1,5 @@
+import { operationLabel } from '../../../shared/operation-log';
+import { useTranslation } from 'react-i18next';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, Copy, FileText, LoaderCircle, Search, Square, Trash2, TriangleAlert, X } from 'lucide-react';
@@ -20,6 +22,7 @@ import { OperationOutput, OperationStatus } from './OperationOutput';
 const closeOperations = () => workspaceStore.getState().setPanel('showOperations', false);
 
 export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void }) {
+	const { t } = useTranslation();
 	const query = useQuery(svnQueries.operationOptions());
 	const operations = query.data ?? [];
 	const copies = useWorkspaceStore((store) => store.catalog?.workingCopies);
@@ -37,17 +40,29 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 	const searchInput = useRef<HTMLInputElement>(null);
 	const table = useRef<HTMLDivElement>(null);
 	const projects = useMemo(() => new Map(copies?.map((copy) => [copy.id, copy])), [copies]);
-	const projectName = (operation: Operation) => (operation.wcId ? (projects.get(operation.wcId)?.name ?? '已移除的工作副本') : '远端仓库');
+
+	const projectName = (operation: Operation) =>
+		operation.wcId ? (projects.get(operation.wcId)?.name ?? t('operationsDialog.removedWorkingCopy')) : t('common.remoteRepository');
+
 	const projectOptions = useMemo(
 		() => [
-			{ value: 'all', label: '所有项目' },
+			{
+				value: 'all',
+				label: t('operationsDialog.allProjects'),
+			},
 			...Array.from(new Set(['remote', ...projects.keys(), ...operations.map((operation) => operation.wcId ?? 'remote')])).map((id) => ({
 				value: id,
-				label: id === 'remote' ? '远端仓库' : (projects.get(id)?.name ?? `已移除 · ${id.slice(0, 6)}`),
+				label:
+					id === 'remote'
+						? t('common.remoteRepository')
+						: (projects.get(id)?.name ??
+							t('operationsDialog.removed', {
+								value: id.slice(0, 6),
+							})),
 				description: projects.get(id)?.path,
 			})),
 		],
-		[operations, projects],
+		[operations, projects, t],
 	);
 	const filtered = useMemo(() => {
 		const needle = deferredSearch.trim().toLocaleLowerCase();
@@ -61,7 +76,7 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 			return (
 				!needle ||
 				[
-					operation.label,
+					operationLabel(operation),
 					projects.get(operation.wcId ?? '')?.name,
 					projects.get(operation.wcId ?? '')?.path,
 					opLabels[operation.state],
@@ -75,12 +90,11 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 			);
 		});
 		return newest ? records : records.toReversed();
-	}, [operations, project, status, deferredSearch, newest, projects]);
+	}, [operations, project, status, deferredSearch, newest, projects, t]);
 	const selected = filtered.find((operation) => operation.id === selectedId) ?? filtered[0];
 	const removable = filtered.filter((operation) => !isOperationActive(operation));
 	const activeCount = operations.filter(isOperationActive).length;
 	const uncertainCount = operations.filter((operation) => clearIds.includes(operation.id) && operation.state === 'uncertain').length;
-
 	useEffect(() => {
 		if (!activeCount) {
 			return;
@@ -88,7 +102,6 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 		const timer = window.setInterval(() => setNow(Date.now()), 1000);
 		return () => window.clearInterval(timer);
 	}, [activeCount]);
-
 	useEffect(() => {
 		table.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 	}, [selected?.id]);
@@ -96,7 +109,7 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 	async function copyLog(operation: Operation) {
 		try {
 			await api.call('copyOperation', { id: operation.id });
-			toast.success('已复制日志');
+			toast.success(t('operationsDialog.logCopied'));
 		} catch (error) {
 			notifyError(error);
 		}
@@ -111,7 +124,11 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 		try {
 			const result = await svnQueries.clearOperations(clearIds);
 			setClearOpen(false);
-			toast.success(`已清空 ${result.removedIds.length} 条日志`);
+			toast.success(
+				t('operationsDialog.clearedLogs', {
+					count: result.removedIds.length,
+				}),
+			);
 		} catch (error) {
 			notifyError(error);
 		} finally {
@@ -140,41 +157,70 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 			>
 				<header className="logs-heading">
 					<FileText size={18} />
-					<DialogTitle>操作日志</DialogTitle>
-					<span className="logs-total">{operations.length} 条记录</span>
+					<DialogTitle>{t('operationsDialog.operationLog')}</DialogTitle>
+					<span className="logs-total">
+						{t('operationsDialog.records', {
+							count: operations.length,
+						})}
+					</span>
 					{activeCount > 0 && (
 						<span className="logs-live">
 							<LoaderCircle size={12} className="spin" />
-							{activeCount} 项进行中
+							{activeCount}
+							{t('operationsDialog.inProgress')}
 						</span>
 					)}
-					<DialogDescription className="sr-only">查看 SVN 操作状态和真实命令输出。可搜索、筛选、复制或清空已结束的日志。</DialogDescription>
+					<DialogDescription className="sr-only">{t('operationsDialog.viewSvnOperationStatusAndActualCommandOutput')}</DialogDescription>
 				</header>
 				<div className="logs-toolbar">
 					<label className="logs-search">
 						<Search size={14} />
-						<input ref={searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索操作、项目或输出…" aria-label="搜索日志" />
+						<input
+							ref={searchInput}
+							value={search}
+							onChange={(event) => setSearch(event.target.value)}
+							placeholder={t('operationsDialog.searchOperationsProjectsOrOutput')}
+							aria-label={t('operationsDialog.searchLogs')}
+						/>
 						{search && (
-							<button aria-label="清除搜索" onClick={() => setSearch('')}>
+							<button aria-label={t('operationsDialog.clearSearch')} onClick={() => setSearch('')}>
 								<X size={12} />
 							</button>
 						)}
 					</label>
 					<Select
-						label="日志状态"
+						label={t('operationsDialog.logStatus')}
 						value={status}
 						onValueChange={setStatus}
 						className="logs-status-filter"
 						options={[
-							{ value: 'all', label: '所有状态' },
-							{ value: 'active', label: '进行中' },
-							{ value: 'success', label: '已完成' },
-							{ value: 'failed', label: '失败' },
-							{ value: 'cancelled', label: '已取消' },
-							{ value: 'uncertain', label: '结果待核实' },
+							{
+								value: 'all',
+								label: t('operationsDialog.allStatuses'),
+							},
+							{
+								value: 'active',
+								label: t('operationsDialog.inProgress2'),
+							},
+							{
+								value: 'success',
+								label: t('operations.success'),
+							},
+							{
+								value: 'failed',
+								label: t('operations.failed'),
+							},
+							{
+								value: 'cancelled',
+								label: t('operations.cancelled'),
+							},
+							{
+								value: 'uncertain',
+								label: t('operations.uncertain'),
+							},
 						]}
 					/>
-					<Combobox label="日志项目" value={project} onValueChange={setProject} options={projectOptions} className="logs-project-filter" />
+					<Combobox label={t('operationsDialog.logProject')} value={project} onValueChange={setProject} options={projectOptions} className="logs-project-filter" />
 					<Popover
 						open={clearOpen}
 						onOpenChange={(open) => {
@@ -189,7 +235,7 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 						<PopoverTrigger asChild>
 							<Button variant="outline" disabled={!removable.length} className="logs-clear">
 								<Trash2 size={13} />
-								清空日志
+								{t('operationsDialog.clearLogs')}
 							</Button>
 						</PopoverTrigger>
 						<PopoverContent
@@ -206,20 +252,25 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 								}
 							}}
 						>
-							<strong>清空这 {clearIds.length} 条日志？</strong>
-							<p>仅删除当前筛选范围内已结束的本机记录。进行中的任务和新增日志会保留。</p>
+							<strong>
+								{t('operationsDialog.clearTheseLogs', {
+									count: clearIds.length,
+								})}
+							</strong>
+							<p>{t('operationsDialog.onlyCompletedLocalRecordsMatchingTheCurrentFilters')}</p>
 							{uncertainCount > 0 && (
 								<p className="logs-warning">
 									<TriangleAlert size={14} />
-									包含 {uncertainCount} 条结果待核实的记录，清空后仍需检查仓库历史。
+									{t('operationsDialog.uncertainRecords', { count: uncertainCount })}
 								</p>
 							)}
 							<div>
 								<Button variant="outline" disabled={clearing} onClick={() => setClearOpen(false)}>
-									取消
+									{t('common.cancel')}
 								</Button>
 								<Button variant="destructive" disabled={clearing} onClick={() => void clearLogs()}>
-									{clearing && <LoaderCircle size={13} className="spin" />}确认清空
+									{clearing && <LoaderCircle size={13} className="spin" />}
+									{t('operationsDialog.confirmClear')}
 								</Button>
 							</div>
 						</PopoverContent>
@@ -229,21 +280,23 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 					{query.isPending ? (
 						<div className="logs-empty">
 							<LoaderCircle size={22} className="spin" />
-							<strong>正在读取日志…</strong>
+							<strong>{t('operationsDialog.loadingLogs')}</strong>
 						</div>
 					) : query.isError ? (
 						<div className="logs-empty">
 							<TriangleAlert size={22} />
-							<strong>日志读取失败</strong>
+							<strong>{t('operationsDialog.unableToLoadLogs')}</strong>
 							<Button variant="outline" onClick={() => void query.refetch()}>
-								重新读取
+								{t('historyComparison.reload')}
 							</Button>
 						</div>
 					) : !filtered.length ? (
 						<div className="logs-empty">
 							<FileText size={26} />
-							<strong>{operations.length ? '没有匹配的日志' : '暂无操作日志'}</strong>
-							<span>{operations.length ? '尝试更换关键词或筛选条件' : '更新、提交和文件操作的结果会显示在这里'}</span>
+							<strong>{operations.length ? t('operationsDialog.noMatchingLogs') : t('operationsDialog.noOperationLogsYet')}</strong>
+							<span>
+								{operations.length ? t('operationsDialog.tryDifferentKeywordsOrFilters') : t('operationsDialog.resultsFromUpdatesCommitsAndFileOperationsAppear')}
+							</span>
 							{operations.length > 0 && (
 								<Button
 									variant="outline"
@@ -253,7 +306,7 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 										setProject('all');
 									}}
 								>
-									重置筛选
+									{t('operationsDialog.resetFilters')}
 								</Button>
 							)}
 						</div>
@@ -265,7 +318,7 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 									className="logs-table-scroll"
 									tabIndex={0}
 									role="grid"
-									aria-label="操作日志列表"
+									aria-label={t('operationsDialog.operationLogList')}
 									aria-activedescendant={selected ? `log-${selected.id}` : undefined}
 									onKeyDown={(event) => {
 										if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c' && selected) {
@@ -299,14 +352,14 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 											<tr>
 												<th>
 													<button onClick={() => setNewest(!newest)}>
-														时间
+														{t('operationsDialog.time')}
 														<ChevronDown size={11} className={newest ? '' : 'logs-sort-up'} />
 													</button>
 												</th>
-												<th>状态</th>
-												<th>操作</th>
-												<th>项目</th>
-												<th>历时</th>
+												<th>{t('common.status')}</th>
+												<th>{t('operationsDialog.operation')}</th>
+												<th>{t('operationsDialog.project')}</th>
+												<th>{t('operationsDialog.duration')}</th>
 											</tr>
 										</thead>
 										<tbody>
@@ -326,7 +379,7 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 													<td>
 														<OperationStatus operation={operation} />
 													</td>
-													<td title={operation.label}>{operation.label}</td>
+													<td title={operationLabel(operation)}>{operationLabel(operation)}</td>
 													<td title={projectName(operation)}>{projectName(operation)}</td>
 													<td className="logs-duration">{operationDuration(operation, now)}</td>
 												</tr>
@@ -345,23 +398,23 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 										}
 									}}
 								>
-									复制日志
+									{t('operationsDialog.copyLog')}
 								</ContextMenuItem>
 								{selected && isOperationActive(selected) && (
 									<ContextMenuItem icon={<Square size={13} />} onSelect={() => void api.call('cancel', { id: selected.id }).catch(notifyError)}>
-										停止操作
+										{t('operationsDialog.stopOperation')}
 									</ContextMenuItem>
 								)}
 							</ContextMenuContent>
 						</ContextMenu>
 					)}
 				</div>
-				<section className="logs-detail" aria-label="选中日志详情">
+				<section className="logs-detail" aria-label={t('operationsDialog.selectedLogDetails')}>
 					{selected ? (
 						<>
 							<div className="logs-detail-heading">
 								<div>
-									<strong>{selected.label}</strong>
+									<strong>{operationLabel(selected)}</strong>
 									<span>
 										{projectName(selected)}
 										<i />
@@ -372,12 +425,12 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 								<OperationStatus operation={selected} />
 								<Button variant="outline" onClick={() => void copyLog(selected)}>
 									<Copy size={13} />
-									复制
+									{t('common.copy')}
 								</Button>
 								{isOperationActive(selected) && (
 									<Button variant="outline" onClick={() => void api.call('cancel', { id: selected.id }).catch(notifyError)}>
 										<Square size={12} />
-										停止
+										{t('operationsDialog.stop')}
 									</Button>
 								)}
 							</div>
@@ -393,26 +446,34 @@ export function OperationsDialog({ onVerify }: { onVerify: (id: string) => void 
 												closeOperations();
 											}}
 										>
-											核实历史
+											{t('operationsDialog.verifyHistory')}
 										</Button>
 									)}
 								</div>
 							)}
-							{selected.state === 'cancelled' && <div className="logs-note">操作已取消，已完成的修改不会回滚。</div>}
+							{selected.state === 'cancelled' && <div className="logs-note">{t('operationsDialog.operationCancelledCompletedChangesWillNotBeUndone')}</div>}
 							<OperationOutput key={selected.id} operation={selected} />
 						</>
 					) : (
 						<div className="logs-empty">
 							<FileText size={24} />
-							<span>选择一条记录查看输出</span>
+							<span>{t('operationsDialog.selectARecordToViewItsOutput')}</span>
 						</div>
 					)}
 				</section>
 				<footer className="logs-footer">
 					<span>
-						显示 {filtered.length} / {operations.length} 条{activeCount ? ` · ${activeCount} 项进行中` : ''}
+						{t('operationsDialog.showingOf', {
+							count: filtered.length,
+							count2: operations.length,
+							value: activeCount
+								? t('operationsDialog.inProgress3', {
+										activeCount: activeCount,
+									})
+								: '',
+						})}
 					</span>
-					<span>保留最近 100 条已结束记录 · 存储于本机</span>
+					<span>{t('operationsDialog.latestCompletedRecordsStoredOnThisMac')}</span>
 				</footer>
 			</DialogContent>
 		</Dialog>

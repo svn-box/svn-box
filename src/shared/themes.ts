@@ -188,18 +188,14 @@ export interface ThemeSurface {
 
 export interface ThemeDefinition extends ThemeSurface {
 	id: Theme;
-	label: string;
-	description: string;
 	navigation?: ThemeSurface;
 }
 
 export const themes: readonly ThemeDefinition[] = [
-	{ id: 'light', label: '白色', description: '亮白 · 清晰蓝', scheme: 'light', colors: white },
-	{ id: 'dark', label: '灰色', description: '石墨 · 冰蓝', scheme: 'dark', colors: graphite },
+	{ id: 'light', scheme: 'light', colors: white },
+	{ id: 'dark', scheme: 'dark', colors: graphite },
 	{
 		id: 'ocean',
-		label: '深蓝',
-		description: '海军蓝 · 钴蓝',
 		scheme: 'light',
 		colors: {
 			...white,
@@ -223,8 +219,6 @@ export const themes: readonly ThemeDefinition[] = [
 	},
 	{
 		id: 'mint',
-		label: '青绿',
-		description: '深青 · 翡翠绿',
 		scheme: 'light',
 		colors: {
 			...white,
@@ -252,16 +246,12 @@ export const themes: readonly ThemeDefinition[] = [
 	},
 	{
 		id: 'iris',
-		label: '紫色',
-		description: '深空紫 · 电光紫',
 		scheme: 'dark',
 		colors: violet,
 		navigation: { scheme: 'dark', colors: { ...violet, bg: '#211a2d', sidebar: '#241b33', chrome: '#241b33', selected: '#45305d', 'accent-soft': '#45305d' } },
 	},
 	{
 		id: 'sunset',
-		label: '橙色',
-		description: '炭灰 · 活力橙',
 		scheme: 'light',
 		colors: {
 			...white,

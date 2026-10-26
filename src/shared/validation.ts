@@ -1,19 +1,27 @@
+import { translate, UI_LANGUAGES } from './i18n';
 import { z } from 'zod';
 import { themeIds } from './themes';
 const text = z
 	.string()
 	.max(32768)
-	.refine((s) => !s.includes('\0'), '不允许空字符');
+	.refine((s) => !s.includes('\0'), { error: () => translate('validation.nullCharactersAreNotAllowed') });
 const id = z.string().min(1).max(200);
 export const requestOptionsSchema = z.object({ requestId: id.optional() }).strict();
-const path = text.refine((s) => !/[\r\n]/.test(s), '路径不能包含换行');
+const path = text.refine((s) => !/[\r\n]/.test(s), { error: () => translate('validation.pathsCannotContainLineBreaks') });
 const wc = z.object({ wcId: id });
 const paths = z.array(path).max(2000);
 export const schemas = {
 	appUpdate: z.object({ action: z.enum(['status', 'check', 'download', 'install', 'release']) }).strict(),
 	state: z.undefined(),
 	detect: z.object({ path: path.optional() }),
-	settings: z.object({ svnPath: path.optional(), theme: z.enum(themeIds).optional(), mergeTool: path.optional() }).strict(),
+	settings: z
+		.object({
+			svnPath: path.optional(),
+			theme: z.enum(themeIds).optional(),
+			mergeTool: path.optional(),
+			language: z.enum(UI_LANGUAGES).optional(),
+		})
+		.strict(),
 	pickFolder: z.undefined(),
 	addWorkingCopy: z.object({ path, name: text.optional() }),
 	addRepository: z.object({ url: text, name: text.optional(), credentialId: id.optional() }),
@@ -74,7 +82,7 @@ export const schemas = {
 	cancelRequest: z.object({ id }),
 	authentication: z
 		.object({ url: text.optional(), repositoryId: id.optional(), wcId: id.optional(), reviewId: id.optional() })
-		.refine((value) => [value.url, value.wcId, value.reviewId].filter(Boolean).length === 1, '必须指定一个认证目标'),
+		.refine((value) => [value.url, value.wcId, value.reviewId].filter(Boolean).length === 1, { error: () => translate('validation.specifyExactlyOneAuthenticationTarget') }),
 	credential: z.object({ rootUrl: text, url: text.optional(), name: text.optional(), username: path, password: path, id: id.optional(), remove: z.boolean().optional() }),
 	credentialForEdit: z.object({ id, rootUrl: text, url: text }).strict(),
 	system: wc.extend({ path, action: z.enum(['reveal', 'copy', 'terminal', 'merge']) }),

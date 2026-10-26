@@ -1,3 +1,5 @@
+import { formatTime } from '../../../shared/i18n/format';
+import { useTranslation } from 'react-i18next';
 import { Cloud, Files, GitBranch, History, MoreHorizontal, Terminal, Wrench } from 'lucide-react';
 import type { Action, WorkingCopy } from '../../../shared/types';
 import { api, errorText } from '../lib/api';
@@ -9,12 +11,13 @@ import { Button } from './ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 
 export function WorkspaceViewTabs({ wcId }: { wcId: string }) {
+	const { t } = useTranslation();
 	const session = useSessionSlice(wcId, ['view', 'lastFileView']);
 	return (
 		<div
 			className="view-tabs segmented-control"
 			role="tablist"
-			aria-label="工作区视图"
+			aria-label={t('workspaceToolbar.workspaceView')}
 			onKeyDown={(event) => {
 				if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) || event.metaKey || event.ctrlKey || event.altKey) {
 					return;
@@ -36,7 +39,7 @@ export function WorkspaceViewTabs({ wcId }: { wcId: string }) {
 				onClick={() => workspaceStore.getState().patchSession({ view: session.lastFileView ?? 'changes' }, wcId)}
 			>
 				<Files />
-				文件
+				{t('common.files')}
 			</Button>
 			<Button
 				role="tab"
@@ -47,7 +50,7 @@ export function WorkspaceViewTabs({ wcId }: { wcId: string }) {
 				onClick={() => workspaceStore.getState().patchSession({ view: 'history' }, wcId)}
 			>
 				<History />
-				历史
+				{t('desktop.history')}
 			</Button>
 		</div>
 	);
@@ -62,19 +65,20 @@ export function WorkingCopyMenu({
 	refresh: (id: string, remote?: boolean) => unknown;
 	requestReview: (action: Action, paths: string[]) => unknown;
 }) {
+	const { t } = useTranslation();
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="ghost" size="icon" aria-label="工作副本操作">
+				<Button variant="ghost" size="icon" aria-label={t('workspaceToolbar.workingCopyActions')}>
 					<MoreHorizontal />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
 				<DropdownMenuItem icon={<Cloud />} onSelect={() => void refresh(wc.id, true)}>
-					检查远端变化（不更新）
+					{t('workspaceToolbar.checkRemoteChangesNoUpdate')}
 				</DropdownMenuItem>
 				<DropdownMenuItem icon={<History />} onSelect={() => workspaceStore.getState().patchSession({ view: 'history', historyTarget: '.' }, wc.id)}>
-					查询整个工作副本历史
+					{t('workspaceToolbar.queryEntireWorkingCopyHistory')}
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
@@ -83,10 +87,10 @@ export function WorkingCopyMenu({
 						void api.call('system', { wcId: wc.id, path: '.', action: 'terminal' }).catch(notifyError);
 					}}
 				>
-					打开终端
+					{t('workspaceNavigation.openTerminal')}
 				</DropdownMenuItem>
 				<DropdownMenuItem icon={<Wrench />} onSelect={() => void requestReview('cleanup', [])}>
-					清理工作副本锁…
+					{t('workspaceToolbar.cleanUpWorkingCopyLocks')}
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
@@ -94,6 +98,7 @@ export function WorkingCopyMenu({
 }
 
 export function WorkspaceStatus({ wc }: { wc: WorkingCopy }) {
+	const { t } = useTranslation();
 	const status = useStatus(wc.id);
 	const snapshot = status.data;
 	return (
@@ -105,10 +110,16 @@ export function WorkspaceStatus({ wc }: { wc: WorkingCopy }) {
 			<span className="scan-time" title={status.error ? errorText(status.error) : fmtDate(snapshot?.scannedAt ?? wc.lastScan)}>
 				<span className={`local-dot ${status.error ? 'bad' : ''}`} />
 				{status.isFetching
-					? '正在扫描…'
+					? t('workspaceToolbar.scanning')
 					: status.error
-						? '本地扫描失败'
-						: `本地扫描 ${snapshot ? new Date(snapshot.scannedAt).toLocaleTimeString('zh-CN', { hour12: false }) : '尚未扫描'}`}
+						? t('workspaceToolbar.localScanFailed')
+						: t('workspaceToolbar.localScan', {
+								value: snapshot
+									? formatTime(snapshot.scannedAt, {
+											hour12: false,
+										})
+									: t('workspaceNavigation.notScannedYet'),
+							})}
 			</span>
 		</div>
 	);

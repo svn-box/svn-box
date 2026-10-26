@@ -1,10 +1,11 @@
+import { operationAction } from '../../../shared/operation-log';
+import { translate } from '../../../shared/i18n';
 import { api, errorText } from '../lib/api';
 import { notifyError, notifyOperation } from '../lib/feedback';
 import { workspaceStore } from '../state/workspace';
 import type { AppState, Operation } from '../../../shared/types';
 import type { SessionCheckpoint } from '../state/workspace-store';
 import { createSvnQueries } from './svn-queries';
-
 export const svnQueries = createSvnQueries(
 	api.call,
 	(snapshot) => workspaceStore.getState().acceptSnapshot(snapshot),
@@ -19,8 +20,8 @@ export function acceptOperation(operation: Operation): Operation | undefined {
 		return;
 	}
 	const state = workspaceStore.getState();
-	const project = state.catalog?.workingCopies.find((copy) => copy.id === current.wcId)?.name ?? '远端仓库';
-	const toastId = current.label === '更新工作副本' && current.wcId ? state.bindUpdateOperation(current.wcId, current.id) : undefined;
+	const project = state.catalog?.workingCopies.find((copy) => copy.id === current.wcId)?.name ?? translate('common.remoteRepository');
+	const toastId = operationAction(current) === 'update' && current.wcId ? state.bindUpdateOperation(current.wcId, current.id) : undefined;
 	notifyOperation(current, project, () => state.setPanel('showOperations', true), toastId);
 	return current;
 }
@@ -42,7 +43,9 @@ export async function readWorkspace(operation?: Operation, checkpoint?: SessionC
 export function subscribeWorkspaceRuntime(onBootError: (error: unknown) => void = notifyError): () => void {
 	const checkpoints = new Map<string, SessionCheckpoint>();
 	void readWorkspace().catch(onBootError);
+
 	const authenticationChanged = (event: Event) => workspaceStore.getState().accept((event as CustomEvent<AppState>).detail);
+
 	window.addEventListener('svnbox:authentication-changed', authenticationChanged);
 	const unsubscribe = api.onOperation((operation) => {
 		const state = workspaceStore.getState();

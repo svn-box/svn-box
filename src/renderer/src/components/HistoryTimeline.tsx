@@ -1,3 +1,6 @@
+import { formatTime } from '../../../shared/i18n/format';
+import { useTranslation } from 'react-i18next';
+import { translate } from '../../../shared/i18n';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, FileDiff } from 'lucide-react';
@@ -7,7 +10,6 @@ import { groupHistory, historyRelativePath, type HistoryDay } from '../lib/histo
 import { Button } from './ui/button';
 import { FileIcon } from './FileIcon';
 import { ScrollArea } from './ui/scroll-area';
-
 type ChangedPath = LogEntry['paths'][number];
 type TimelineRow =
 	| { key: string; type: 'day'; day: HistoryDay }
@@ -15,8 +17,23 @@ type TimelineRow =
 	| { key: string; type: 'path'; entry: LogEntry; path: ChangedPath }
 	| { key: string; type: 'preview'; entry: LogEntry }
 	| { key: string; type: 'space'; entry: LogEntry };
+const actions: Record<string, string> = {
+	get A() {
+		return translate('common.added');
+	},
 
-const actions: Record<string, string> = { A: '新增', M: '修改', D: '删除', R: '替换' };
+	get M() {
+		return translate('common.modified');
+	},
+
+	get D() {
+		return translate('common.deleted');
+	},
+
+	get R() {
+		return translate('common.replaced');
+	},
+};
 const heights = { day: 32, commit: 54, path: 26, preview: 376, space: 12 };
 
 export function HistoryTimeline({
@@ -39,11 +56,12 @@ export function HistoryTimeline({
 	onChange: (patch: Partial<WorkspaceSession>) => void;
 	onCompare: (path: string, revision: number) => void;
 }) {
+	const { t } = useTranslation();
 	const viewport = useRef<HTMLDivElement>(null);
 	const [activeKey, setActiveKey] = useState('');
 	const [scrollRequest, setScrollRequest] = useState(0);
 	const pendingScroll = useRef<string | undefined>(undefined);
-	const days = useMemo(() => groupHistory(entries), [entries]);
+	const days = useMemo(() => groupHistory(entries), [entries, t]);
 	const collapsedDates = useMemo(() => new Set(session.historyCollapsedDates ?? []), [session.historyCollapsedDates]);
 	const collapsedRevisions = useMemo(() => new Set(session.historyCollapsedRevisions ?? []), [session.historyCollapsedRevisions]);
 	const preview = session.historyPreviewOpen ? entries.find((entry) => entry.revision === session.historyRevision) : undefined;
@@ -77,7 +95,6 @@ export function HistoryTimeline({
 		getItemKey: (index) => rows[index].key,
 		overscan: 8,
 	});
-
 	useEffect(() => {
 		virtual.measure();
 		if (pendingScroll.current) {
@@ -176,25 +193,34 @@ export function HistoryTimeline({
 				: activeRow?.type === 'path'
 					? `${actions[activeRow.path.action] ?? activeRow.path.action}，${activeRow.path.path}`
 					: '';
-
 	return (
 		<>
 			<div className="history-overview">
 				<span>
-					{days.length} 天 · {entries.length} 次提交
+					{t('historyTimeline.daysCommits', {
+						count: days.length,
+						count2: entries.length,
+					})}
 				</span>
 				<div>
 					<Button variant="ghost" size="sm" onClick={() => onChange({ historyCollapsedDates: days.map((day) => day.key) })}>
 						<ChevronsDownUp />
-						收起全部
+						{t('historyTimeline.collapseAll')}
 					</Button>
 					<Button variant="ghost" size="sm" onClick={() => onChange({ historyCollapsedDates: [], historyCollapsedRevisions: [] })}>
 						<ChevronsUpDown />
-						展开全部
+						{t('historyTimeline.expandAll')}
 					</Button>
 				</div>
 			</div>
-			<ScrollArea ref={viewport} className="history-timeline" role="region" aria-label="历史时间线，方向键浏览，左右折叠，回车查看" tabIndex={0} onKeyDown={navigate}>
+			<ScrollArea
+				ref={viewport}
+				className="history-timeline"
+				role="region"
+				aria-label={t('historyTimeline.historyTimelineArrowKeysToBrowseLeftAnd')}
+				tabIndex={0}
+				onKeyDown={navigate}
+			>
 				<span className="sr-only" role="status">
 					{announcement}
 				</span>
@@ -214,7 +240,10 @@ export function HistoryTimeline({
 										{collapsedDates.has(row.day.key) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
 										<strong>{row.day.label}</strong>
 										<span>
-											{row.day.entries.length} 次提交 · {row.day.pathCount} 个路径
+											{t('historyTimeline.commitsPaths', {
+												count: row.day.entries.length,
+												pathCount: row.day.pathCount,
+											})}
 										</span>
 									</button>
 								) : row.type === 'commit' ? (
@@ -230,28 +259,32 @@ export function HistoryTimeline({
 											<span className="history-commit-text">
 												<span className="history-commit-meta">
 													<b className="revision">r{row.entry.revision}</b>
-													<span className="truncate">{row.entry.author || '未知作者'}</span>
+													<span className="truncate">{row.entry.author || t('detailsPanel.unknownAuthor')}</span>
 													<time dateTime={row.entry.date}>
-														{row.entry.date
-															? new Date(row.entry.date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
-															: '—'}
+														{row.entry.date ? formatTime(row.entry.date, { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'}
 													</time>
-													<span>{row.entry.paths.length} 项变更</span>
+													<span>
+														{t('historyTimeline.changes', {
+															count: row.entry.paths.length,
+														})}
+													</span>
 												</span>
 												<span className="history-commit-summary truncate" title={row.entry.message}>
-													{row.entry.message.split('\n')[0] || '（无提交说明）'}
+													{row.entry.message.split('\n')[0] || t('detailsPanel.noCommitMessage')}
 												</span>
 											</span>
 										</button>
 										<Button
 											variant="outline"
 											size="sm"
-											aria-label={`查看 r${row.entry.revision} 本次差异`}
+											aria-label={t('historyTimeline.viewChangesInR', {
+												revision: row.entry.revision,
+											})}
 											aria-expanded={previewVisible && preview?.revision === row.entry.revision}
 											onClick={() => (previewVisible && preview?.revision === row.entry.revision ? closePreview(row.entry.revision) : openPreview(row.entry))}
 										>
 											<FileDiff />
-											{previewVisible && preview?.revision === row.entry.revision ? '收起差异' : '查看本次差异'}
+											{previewVisible && preview?.revision === row.entry.revision ? t('historyTimeline.collapseDiff') : t('historyTimeline.viewCommitDiff')}
 										</Button>
 									</div>
 								) : row.type === 'path' ? (
@@ -264,7 +297,13 @@ export function HistoryTimeline({
 												data-history-key={row.key}
 												aria-label={`${actions[row.path.action] ?? row.path.action} ${row.path.path}`}
 												aria-disabled={relative === undefined}
-												title={`${row.path.path}${row.path.copyFrom ? `\n复制自 ${row.path.copyFrom}` : ''}\n${relative === undefined ? '位于当前工作副本之外' : '查看此文件在本次提交中的差异；双击使用 FileMerge'}`}
+												title={`${row.path.path}${
+													row.path.copyFrom
+														? t('historyTimeline.copiedFrom', {
+																copyFrom: row.path.copyFrom,
+															})
+														: ''
+												}\n${relative === undefined ? t('historyTimeline.outsideTheCurrentWorkingCopy') : t('historyTimeline.viewThisFileSDiffInTheCommit')}`}
 												onFocus={() => setActiveKey(row.key)}
 												onClick={() => activate(row)}
 												onDoubleClick={() => relative !== undefined && row.path.kind !== 'dir' && onCompare(relative, row.entry.revision)}
@@ -274,8 +313,8 @@ export function HistoryTimeline({
 												</span>
 												<FileIcon path={row.path.path} kind={row.path.kind} size={16} />
 												<span className="truncate">{row.path.path}</span>
-												{row.path.copyFrom && <span className="history-copy-hint">复制</span>}
-												{relative === undefined && <span className="history-copy-hint">副本之外</span>}
+												{row.path.copyFrom && <span className="history-copy-hint">{t('common.copy')}</span>}
+												{relative === undefined && <span className="history-copy-hint">{t('historyTimeline.outsideWorkingCopy')}</span>}
 											</button>
 										);
 									})()

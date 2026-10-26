@@ -1,4 +1,5 @@
 import type { Theme } from './themes';
+import type { UiLanguage } from './i18n';
 import type { AppUpdateAction, AppUpdateState } from './app-updates';
 export type { Theme } from './themes';
 export type View = 'changes' | 'files' | 'history';
@@ -75,7 +76,7 @@ export interface AppState {
 	sessions: Record<string, WorkspaceSession>;
 	credentials: CredentialProfile[];
 	recentMessages: string[];
-	settings: { svnPath: string; theme: Theme; mergeTool: string };
+	settings: { svnPath: string; theme: Theme; mergeTool: string; language?: UiLanguage };
 	activeId?: string;
 }
 export interface FileStatus {
@@ -141,6 +142,8 @@ export interface Operation {
 	id: string;
 	wcId?: string;
 	label: string;
+	action?: Action | 'checkout';
+	conflictCount?: number;
 	state: OperationState;
 	sequence?: number;
 	startedAt: string;
@@ -148,7 +151,9 @@ export interface Operation {
 	logs: string[];
 	error?: AppError;
 }
+
 export const isOperationActive = (operation: Pick<Operation, 'state'>): boolean => operation.state === 'waiting' || operation.state === 'running';
+
 export interface AppError {
 	kind: 'auth' | 'certificate' | 'locked' | 'path' | 'network' | 'conflict' | 'cancelled' | 'stale' | 'validation' | 'command' | 'outdated';
 	message: string;
@@ -232,8 +237,10 @@ export interface SvnboxApi {
 	call<K extends RpcName>(method: K, input: RpcMap[K]['input'], options?: RequestOptions): Promise<RpcMap[K]['output']>;
 	onOperation(callback: (operation: Operation) => void): () => void;
 	onNavigate(callback: (action: string) => void): () => void;
+	onLanguage(callback: (language: UiLanguage) => void): () => void;
 	onAppUpdate(callback: (state: AppUpdateState) => void): () => void;
 }
+
 export const emptySession = (): WorkspaceSession => ({ draft: '', selected: [], filter: 'all', expanded: ['.'], currentPath: '', view: 'changes', historyTarget: '.' });
 
 export const isChanged = (file: FileStatus): boolean =>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useId } from 'react';
 import { ChevronDown, Clock3, LoaderCircle, ShieldCheck } from 'lucide-react';
 import type { FileStatus, WorkingCopy } from '../../../shared/types';
@@ -26,10 +27,13 @@ export function CommitPanel({
 	onReview: (paths: string[]) => void;
 	onClose: () => void;
 }) {
+	const { t } = useTranslation();
 	const messageId = useId();
 	const session = useWorkspaceSession(copy.id);
 	const save = useWorkspaceStore((state) => state.sessionWrites[copy.id]);
+
 	const onPatch = (patch: Partial<typeof session>) => workspaceStore.getState().patchSession(patch, copy.id);
+
 	const selected = files.filter((file) => session.selected.includes(file.path));
 
 	function toggle(path: string) {
@@ -37,14 +41,28 @@ export function CommitPanel({
 	}
 
 	return (
-		<Modal title={`提交到 ${copy.name}`} description="填写提交说明并选择本次要提交的文件。" wide className="commit-modal" onClose={onClose}>
+		<Modal
+			title={t('commitPanel.commitTo', {
+				name: copy.name,
+			})}
+			description={t('commitPanel.writeACommitMessageAndSelectTheFiles')}
+			wide
+			className="commit-modal"
+			onClose={onClose}
+		>
 			<div className="commit-layout">
 				<div className="commit-editor">
 					<div className="commit-editor-heading">
-						<label htmlFor={messageId}>提交说明</label>
+						<label htmlFor={messageId}>{t('commitPanel.commitMessage')}</label>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="sm" aria-label="近期提交说明" title="复用近期提交说明" disabled={!recentMessages.length}>
+								<Button
+									variant="ghost"
+									size="sm"
+									aria-label={t('commitPanel.recentCommitMessages')}
+									title={t('commitPanel.reuseARecentCommitMessage')}
+									disabled={!recentMessages.length}
+								>
 									<Clock3 />
 									<ChevronDown />
 								</Button>
@@ -60,20 +78,30 @@ export function CommitPanel({
 							</DropdownMenuContent>
 						</DropdownMenu>
 					</div>
-					<textarea id={messageId} autoFocus value={session.draft} placeholder="说明修改的目的与影响…" onChange={(event) => onPatch({ draft: event.target.value })} />
+					<textarea
+						id={messageId}
+						autoFocus
+						value={session.draft}
+						placeholder={t('commitPanel.describeThePurposeAndImpactOfTheseChanges')}
+						onChange={(event) => onPatch({ draft: event.target.value })}
+					/>
 					<div className="draft-save">
 						<ShieldCheck size={12} />
-						{save?.error ? '草稿保存失败，内容仍保留在当前窗口' : save?.pending ? '正在保存…' : '草稿已自动保存'}
+						{save?.error ? t('commitPanel.theDraftCouldNotBeSavedYourText') : save?.pending ? t('commitPanel.saving') : t('commitPanel.draftSavedAutomatically')}
 					</div>
 				</div>
 				<div className="commit-selection">
-					<div className="commit-list-title">{files.length} 个变更文件</div>
+					<div className="commit-list-title">
+						{t('commitPanel.changedFiles', {
+							count: files.length,
+						})}
+					</div>
 					<div className="commit-file-list">
 						<div className="commit-file-header table-head">
 							<label className="commit-select-all">
 								<input
 									type="checkbox"
-									aria-label="全选提交文件"
+									aria-label={t('commitPanel.selectAllCommitFiles')}
 									checked={!!files.length && selected.length === files.length}
 									disabled={!files.length}
 									ref={(input) => {
@@ -83,22 +111,24 @@ export function CommitPanel({
 									}}
 									onChange={() => onPatch({ selected: selected.length === files.length ? [] : files.map((file) => file.path) })}
 								/>
-								提交
+								{t('commitPanel.commit')}
 							</label>
-							<span>状态</span>
-							<span>路径</span>
+							<span>{t('common.status')}</span>
+							<span>{t('commitPanel.path')}</span>
 						</div>
 						{files.length ? (
 							<VirtualList
 								items={files}
-								label="选择提交文件"
+								label={t('commitPanel.selectFilesToCommit')}
 								height={26}
 								render={(file) => (
 									<label className="commit-file file-row">
 										<span className="commit-file-check">
 											<input
 												type="checkbox"
-												aria-label={`提交 ${file.path}`}
+												aria-label={t('commitPanel.commit2', {
+													path: file.path,
+												})}
 												checked={session.selected.includes(file.path)}
 												onChange={() => toggle(file.path)}
 											/>
@@ -112,21 +142,31 @@ export function CommitPanel({
 								)}
 							/>
 						) : (
-							<div className="empty">没有可提交的本地变更</div>
+							<div className="empty">{t('commitPanel.noLocalChangesAreReadyToCommit')}</div>
 						)}
 					</div>
 				</div>
 			</div>
-			{blocked > 0 && <p className="hint">另有 {blocked} 个冲突、缺失或外部路径暂不能提交。</p>}
+			{blocked > 0 && (
+				<p className="hint">
+					{t('commitPanel.blockedPathsResolveConflictsMissingFilesOrExternals', {
+						blocked: blocked,
+					})}
+				</p>
+			)}
 			<div className="dialog-footer">
 				<span className="muted mr-auto">
-					已选 {selected.length} / {files.length} 项
+					{t('commitPanel.selectedOf', {
+						count: selected.length,
+						count2: files.length,
+					})}
 				</span>
 				<Button variant="outline" onClick={onClose}>
-					稍后继续
+					{t('commitPanel.continueLater')}
 				</Button>
 				<Button disabled={!session.draft.trim() || !selected.length || busy} onClick={() => onReview(selected.map((file) => file.path))}>
-					{busy ? <LoaderCircle className="spin" /> : <ShieldCheck />}审阅提交范围
+					{busy ? <LoaderCircle className="spin" /> : <ShieldCheck />}
+					{t('commitPanel.reviewCommitScope')}
 				</Button>
 			</div>
 		</Modal>

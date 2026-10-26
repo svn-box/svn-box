@@ -1,5 +1,5 @@
+import { translate } from '../../../shared/i18n';
 import { isOperationActive, type Operation } from '../../../shared/types';
-
 export { operationOutput } from '../../../shared/operation-log';
 
 export function operationDuration(operation: Operation, now = Date.now()): string {
@@ -13,14 +13,19 @@ export function operationDuration(operation: Operation, now = Date.now()): strin
 	}
 	const seconds = (end - start) / 1000;
 	if (seconds < 1) {
-		return `${seconds.toFixed(1)} 秒`;
+		return translate('operationLog.s', {
+			value: seconds.toFixed(1),
+		});
 	}
 	if (seconds < 60) {
-		return `${Math.floor(seconds)} 秒`;
+		return translate('operationLog.s', {
+			value: Math.floor(seconds),
+		});
 	}
-	return `${Math.floor(seconds / 60)} 分 ${Math.floor(seconds % 60)} 秒`;
+	return translate('operationLog.minS', {
+		value: Math.floor(seconds / 60),
+		value2: Math.floor(seconds % 60),
+	});
 }
 
-export function operationHasConflicts(operation: Operation): boolean {
-	return operation.state === 'success' && operation.logs.some((line) => line.includes('个路径存在冲突'));
-}
+export { operationHasConflicts } from '../../../shared/operation-log';

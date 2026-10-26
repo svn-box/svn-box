@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { RefreshCw, Square } from 'lucide-react';
 import { useDiff } from '../queries/hooks';
@@ -19,6 +20,7 @@ export function HistoryComparison({
 	onClose: () => void;
 	onCompare?: () => void;
 }) {
+	const { t } = useTranslation();
 	const diff = useDiff(wcId, path, '', revision);
 	const [stoppedKey, setStoppedKey] = useState('');
 	const key = JSON.stringify(diff.queryKey);
@@ -27,7 +29,7 @@ export function HistoryComparison({
 		<div className="history-inline-diff" data-revision={revision}>
 			<div className="history-diff-context">
 				<span className="truncate" title={path}>
-					r{revision - 1} → r{revision} · {path === '.' ? '当前工作副本范围' : path}
+					r{revision - 1} → r{revision} · {path === '.' ? t('historyComparison.currentWorkingCopyScope') : path}
 				</span>
 				{diff.loading ? (
 					<Button
@@ -39,7 +41,7 @@ export function HistoryComparison({
 						}}
 					>
 						<Square />
-						停止读取
+						{t('historyComparison.stopLoading')}
 					</Button>
 				) : (
 					(stopped || !!diff.error) && (
@@ -52,7 +54,7 @@ export function HistoryComparison({
 							}}
 						>
 							<RefreshCw />
-							重新读取
+							{t('historyComparison.reload')}
 						</Button>
 					)
 				)}
@@ -61,9 +63,9 @@ export function HistoryComparison({
 				text={diff.text}
 				loading={diff.loading}
 				unsupported={diff.unsupported}
-				error={stopped ? '已停止读取差异' : diff.error}
+				error={stopped ? t('historyComparison.diffLoadingStopped') : diff.error}
 				revision={revision}
-				title={wholeCommit ? '本次提交差异' : path}
+				title={wholeCommit ? t('historyComparison.commitDiff') : path}
 				onClose={onClose}
 				onCompare={onCompare}
 			/>
