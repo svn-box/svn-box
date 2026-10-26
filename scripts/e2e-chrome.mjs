@@ -14,6 +14,8 @@ let instance;
 let page;
 
 async function inspect(label) {
+	// Layout updates precede compositor frames; sample geometry and pixels after repaint.
+	await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
 	const geometry = await page.evaluate(() => {
 		const header = document.querySelector('.titlebar-sidebar');
 		const sidebar = document.querySelector('.sidebar');
