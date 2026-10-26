@@ -16,14 +16,23 @@ function checkSignal(signal?: AbortSignal): void {
 }
 
 function authenticationTarget<K extends RpcName>(method: K, input: RpcMap[K]['input']): RpcMap['authentication']['input'] | undefined {
-	const target = input as { url?: string; repositoryId?: string; wcId?: string; revision?: number; remote?: boolean; reviewId?: string } | undefined;
+	const target = input as
+		{ url?: string; repositoryId?: string; wcId?: string; revision?: number; remote?: boolean; reviewId?: string; action?: string; range?: unknown } | undefined;
 	if (!target) {
 		return;
 	}
 	if (['list', 'addRepository', 'checkout'].includes(method) && target.url) {
 		return { url: target.url, repositoryId: target.repositoryId };
 	}
-	if ((method === 'log' || (['diff', 'compare'].includes(method) && target.revision !== undefined) || (method === 'status' && target.remote)) && target.wcId) {
+	if (
+		(method === 'rangeDiff' ||
+			(method === 'review' && target.action === 'recover') ||
+			(method === 'compare' && !!target.range) ||
+			method === 'log' ||
+			(['diff', 'compare'].includes(method) && target.revision !== undefined) ||
+			(method === 'status' && target.remote)) &&
+		target.wcId
+	) {
 		return { wcId: target.wcId };
 	}
 	if (method === 'execute' && target.reviewId) {

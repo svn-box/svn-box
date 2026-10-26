@@ -10,6 +10,8 @@ export const requestOptionsSchema = z.object({ requestId: id.optional() }).stric
 const path = text.refine((s) => !/[\r\n]/.test(s), { error: () => translate('validation.pathsCannotContainLineBreaks') });
 const wc = z.object({ wcId: id });
 const paths = z.array(path).max(2000);
+const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const range = z.object({ from: revision, to: z.union([revision, z.literal('WORKING')]) }).strict();
 export const schemas = {
 	appUpdate: z.object({ action: z.enum(['status', 'check', 'download', 'install', 'release']) }).strict(),
 	state: z.undefined(),
@@ -26,7 +28,7 @@ export const schemas = {
 	addWorkingCopy: z.object({ path, name: text.optional() }),
 	addRepository: z.object({ url: text, name: text.optional(), credentialId: id.optional() }),
 	bookmark: z.object({ repositoryId: id, url: text, name: text, id: id.optional(), remove: z.boolean().optional(), direction: z.enum(['up', 'down']).optional() }),
-	compare: wc.extend({ path, revision: z.number().int().positive().optional() }),
+	compare: wc.extend({ path, revision: z.number().int().positive().optional(), range: range.optional() }),
 	manage: z.object({
 		entity: z.enum(['workingCopy', 'repository', 'group']),
 		id: id.optional(),
@@ -65,14 +67,36 @@ export const schemas = {
 	info: wc.extend({ path }),
 	properties: wc.extend({ path }),
 	diff: wc.extend({ path, revision: z.number().int().positive().optional() }),
+	rangeDiff: wc.extend({ path, ...range.shape }).strict(),
+	backups: wc.extend({ path }).strict(),
+	mergeState: wc.extend({ path }).strict(),
 	log: wc.extend({ path: path.optional(), before: z.number().int().nonnegative().optional() }),
 	list: z.object({ url: text, repositoryId: id.optional() }),
 	checkout: z.object({ url: text, destination: path, repositoryId: id.optional(), depth: z.enum(['infinity', 'immediates', 'files', 'empty']) }),
 	review: wc.extend({
-		action: z.enum(['commit', 'update', 'add', 'rename', 'delete', 'ignore', 'revert', 'resolve', 'cleanup']),
+		action: z.enum([
+			'commit',
+			'update',
+			'add',
+			'rename',
+			'delete',
+			'ignore',
+			'revert',
+			'resolve',
+			'cleanup',
+			'recover',
+			'restore-backup',
+			'resolve-local',
+			'resolve-incoming',
+			'merge',
+			'apply-merge',
+		]),
 		paths,
 		destination: path.optional(),
 		message: text.max(100000).optional(),
+		revision: revision.optional(),
+		backupId: id.optional(),
+		mergeId: id.optional(),
 	}),
 	execute: z.object({ reviewId: id }),
 	operations: z.undefined(),

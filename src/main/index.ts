@@ -11,7 +11,7 @@ import { getTheme } from '../shared/themes';
 import { operationOutput, operationLabels, operationLabel } from '../shared/operation-log';
 import { appReleasesUrl } from '../shared/app-updates';
 import { AppUpdates } from './app-updates';
-import { SvnService, type Vault } from './service';
+import { SvnService, type Vault, type MergeInputs } from './service';
 import { Store } from './store';
 import { Runner, SvnError } from './runner';
 const currentDirectory = __dirname;
@@ -141,6 +141,32 @@ async function system(input: RpcMap['system']['input']): Promise<void> {
 	}
 }
 
+async function launchMerge(inputs: MergeInputs, signal: AbortSignal): Promise<void> {
+	const configured = service.store.get().settings.mergeTool;
+	if (configured && !/FileMerge\.app\/?$|(?:^|\/)opendiff$/.test(configured)) {
+		// Unknown tools receive separate files for manual merging, never an assumed command-line contract.
+		if (!isAbsolute(configured)) {
+			throw new SvnError({ kind: 'validation', message: translate('fileVersions.toolUnavailable') });
+		}
+		if (extname(configured).toLowerCase() === '.app') {
+			await runExternal('/usr/bin/open', ['-a', configured, inputs.base, inputs.local, inputs.incoming, inputs.output]);
+		} else {
+			await runExternal(configured, [inputs.base, inputs.local, inputs.incoming, inputs.output], true);
+		}
+		return;
+	}
+	const tool = await new Promise<string>((resolve, reject) => {
+		execFile('/usr/bin/xcrun', ['--find', 'opendiff'], { signal }, (error, stdout) => {
+			if (error) {
+				reject(new SvnError({ kind: 'path', message: translate('fileVersions.toolUnavailable') }));
+			} else {
+				resolve(stdout.trim());
+			}
+		});
+	});
+	await runner.run([inputs.local, inputs.incoming, '-ancestor', inputs.base, '-merge', inputs.output], { executable: tool, signal, timeout: 30000 });
+}
+
 async function runExternal(executable: string, args: string[], detached = false): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
 		const child = spawn(executable, args, { shell: false, stdio: 'ignore', detached });
@@ -245,7 +271,7 @@ function registerIpc(): void {
 								}
 							});
 						});
-						const comparison = await service.comparison(data.wcId, data.path, data.revision);
+						const comparison = await service.comparison(data.wcId, data.path, data.revision, data.range);
 						await runExternal(tool, [comparison.left, comparison.right], true);
 						break;
 					}
@@ -274,6 +300,15 @@ function registerIpc(): void {
 						break;
 					case 'diff':
 						value = await service.diff(data.wcId, data.path, data.revision);
+						break;
+					case 'rangeDiff':
+						value = await service.rangeDiff(data);
+						break;
+					case 'backups':
+						value = await service.fileBackups(data.wcId, data.path);
+						break;
+					case 'mergeState':
+						value = await service.mergeState(data.wcId, data.path);
 						break;
 					case 'log':
 						value = await service.log(data.wcId, data.path, data.before);
@@ -567,7 +602,7 @@ app.whenReady().then(async () => {
 		return;
 	}
 	const directory = app.getPath('userData');
-	service = new SvnService(new Store(directory), runner, (operation) => window?.webContents.send('svnbox:operation', operation), new SecureVault(directory));
+	service = new SvnService(new Store(directory), runner, (operation) => window?.webContents.send('svnbox:operation', operation), new SecureVault(directory), launchMerge);
 	try {
 		await service.initialize();
 	} catch (error) {

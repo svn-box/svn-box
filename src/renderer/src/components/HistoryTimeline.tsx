@@ -44,6 +44,7 @@ export function HistoryTimeline({
 	repositoryRoot,
 	onChange,
 	onCompare,
+	onVersions,
 }: {
 	entries: LogEntry[];
 	session: Pick<
@@ -55,6 +56,7 @@ export function HistoryTimeline({
 	repositoryRoot: string;
 	onChange: (patch: Partial<WorkspaceSession>) => void;
 	onCompare: (path: string, revision: number) => void;
+	onVersions: (path: string, revision: number) => void;
 }) {
 	const { t } = useTranslation();
 	const viewport = useRef<HTMLDivElement>(null);
@@ -324,6 +326,7 @@ export function HistoryTimeline({
 										revision={row.entry.revision}
 										path={previewPath}
 										wholeCommit={previewPath === session.historyTarget}
+										onVersions={() => onVersions(previewPath, row.entry.revision)}
 										onClose={() => closePreview(row.entry.revision)}
 										onCompare={
 											previewPath !== '.' &&

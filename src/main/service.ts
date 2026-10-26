@@ -1,3 +1,6 @@
+import { z } from 'zod';
+import { readRecord, writeRecord } from './local-records';
+import { FileBackups, regularContent, replaceContent, contentDiff, contentHash, textContent, assertWritableContent } from './file-content';
 import { operationLabel } from '../shared/operation-log';
 import { translate, uiI18n, UI_LANGUAGE } from '../shared/i18n';
 import { appendOperationLog } from './operation-logs';
@@ -28,6 +31,8 @@ import {
 	type Property,
 	type RemoteEntry,
 	type RpcMap,
+	type MergeState,
+	type RevisionRange,
 } from '../shared/types';
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', parseAttributeValue: false, parseTagValue: false, trimValues: false, processEntities: true });
 
@@ -50,10 +55,29 @@ export interface Vault {
 	set(id: string, password: string): Promise<void>;
 	delete(id: string): Promise<void>;
 }
+const mergeRecordSchema = z.object({
+	id: z.uuid(),
+	wcId: z.string().min(1),
+	path: z.string().min(1),
+	fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+	baseRevision: z.string(),
+	incomingRevision: z.string(),
+	initialHash: z.string().regex(/^[a-f0-9]{64}$/),
+});
+type MergeRecord = z.infer<typeof mergeRecordSchema>;
+export interface MergeInputs {
+	local: string;
+	incoming: string;
+	base: string;
+	output: string;
+}
 export class SvnService {
 	readonly store: Store;
 	readonly runner: Runner;
 	private vault?: Vault;
+	private backups: FileBackups;
+	private reviewContents = new Map<string, Buffer>();
+	private launchMerge?: (inputs: MergeInputs, signal: AbortSignal) => Promise<void>;
 	private queues = new Map<string, Promise<void>>();
 	private reads = 0;
 	private readers: (() => void)[] = [];
@@ -68,11 +92,19 @@ export class SvnService {
 	private operationWriteQueued = false;
 	private emit: (operation: Operation) => void;
 
-	constructor(store: Store, runner: Runner, emit: (operation: Operation) => void = () => {}, vault?: Vault) {
+	constructor(
+		store: Store,
+		runner: Runner,
+		emit: (operation: Operation) => void = () => {},
+		vault?: Vault,
+		launchMerge?: (inputs: MergeInputs, signal: AbortSignal) => Promise<void>,
+	) {
 		this.store = store;
 		this.runner = runner;
 		this.emit = emit;
 		this.vault = vault;
+		this.backups = new FileBackups(store.directory);
+		this.launchMerge = launchMerge;
 	}
 
 	async withRequest<T>(id: string | undefined, method: keyof RpcMap, work: () => Promise<T>): Promise<T> {
@@ -295,12 +327,27 @@ export class SvnService {
 		});
 	}
 
-	async comparison(wcId: string, path: string, revision?: number): Promise<{ left: string; right: string }> {
+	async comparison(wcId: string, path: string, revision?: number, range?: RevisionRange): Promise<{ left: string; right: string }> {
 		const wc = this.wc(wcId);
 		return this.read(async () => {
 			const target = await this.local(wc, path);
 			if (!path || path === '.') {
 				fail(translate('svn.selectAFileToCompareInFilemerge'));
+			}
+			if (range) {
+				const before = await this.historicalContent(wc, path, range.from);
+				const after = range.to === 'WORKING' ? await regularContent(target) : await this.historicalContent(wc, path, range.to);
+				if (textContent(before) === undefined || textContent(after) === undefined) {
+					fail(translate('fileVersions.binaryPreview'));
+				}
+				const directory = join(this.store.directory, 'comparisons');
+				await mkdir(directory, { recursive: true, mode: 0o700 });
+				const temporary = await mkdtemp(join(directory, 'compare-'));
+				const left = join(temporary, `r${range.from}-${basename(path)}`);
+				const right = join(temporary, `${range.to}-${basename(path)}`);
+				await writeFile(left, before, { mode: 0o400 });
+				await writeFile(right, after, { mode: 0o400 });
+				return { left, right };
 			}
 			let left = '';
 			let right = '';
@@ -511,6 +558,46 @@ export class SvnService {
 		});
 	}
 
+	async rangeDiff(input: RpcMap['rangeDiff']['input']): Promise<RpcMap['rangeDiff']['output']> {
+		const wc = this.wc(input.wcId);
+		return this.read(async () => {
+			const target = await this.local(wc, input.path);
+			const revisions = input.to === 'WORKING' ? String(input.from) : `${input.from}:${input.to}`;
+			const result = await this.command(['diff', '-r', revisions, '--', peg(target)], { cwd: wc.path }, this.repo(wc));
+			return {
+				text: result.stdout.replaceAll(`${wc.path}/`, ''),
+				unsupported: /Cannot display: file marked as a binary type/.test(result.stdout) ? translate('fileVersions.binaryPreview') : undefined,
+			};
+		});
+	}
+
+	async fileBackups(wcId: string, path: string): Promise<RpcMap['backups']['output']> {
+		await this.local(this.wc(wcId), path);
+		return this.backups.list(wcId, path);
+	}
+
+	async mergeState(wcId: string, path: string): Promise<MergeState | null> {
+		const wc = this.wc(wcId);
+		await this.local(wc, path);
+		return this.read(async () => {
+			const record = await this.mergeRecord(wcId, path);
+			if (!record) {
+				return null;
+			}
+			const directory = join(this.store.directory, 'merges', record.id);
+			const bytes = await regularContent(join(directory, `result${extname(path)}`));
+			return {
+				id: record.id,
+				path,
+				baseRevision: record.baseRevision,
+				incomingRevision: record.incomingRevision,
+				hasResult: contentHash(bytes) !== record.initialHash && textContent(bytes) !== undefined,
+				markers: this.hasMarkers(bytes),
+				preview: await contentDiff(join(this.store.directory, 'previews'), await regularContent(await this.local(wc, path)), bytes, this.requestContext.getStore()),
+			};
+		});
+	}
+
 	async log(wcId: string, path = '.', before?: number): Promise<LogEntry[]> {
 		if (before === 0) {
 			return [];
@@ -599,205 +686,7 @@ export class SvnService {
 	}
 
 	async review(input: RpcMap['review']['input']): Promise<Review> {
-		const wc = this.wc(input.wcId);
-		if (!input.paths.length && !['update', 'cleanup'].includes(input.action)) {
-			fail(translate('svn.selectAnOperationTarget'));
-		}
-		for (const path of input.paths) {
-			await this.local(wc, path);
-		}
-		const snapshot = await this.scan(wc);
-		if (
-			snapshot.files.some(
-				(file) =>
-					file.external &&
-					input.paths.some((path) => contains(file.path, path) || (['delete', 'rename', 'revert', 'add'].includes(input.action) && contains(path, file.path))),
-			)
-		) {
-			fail(translate('svn.theScopeIncludesAnExternalManageDirectoryExternals'));
-		}
-		let paths = [...new Set(input.paths)];
-		const reasons: string[] = [];
-		if (input.action === 'commit') {
-			if (!input.message?.trim()) {
-				fail(translate('svn.enterACommitMessage'));
-			}
-			const tracked = snapshot.files.filter(isChanged);
-			for (const path of paths) {
-				if (!tracked.some((file) => file.path === path)) {
-					fail(
-						translate('svn.fileStatusHasChangedRefreshFirst', {
-							path: path,
-						}),
-						'stale',
-					);
-				}
-			}
-			const selected = new Set(paths);
-			let added = true;
-			while (added) {
-				added = false;
-				for (const file of tracked) {
-					const mandatory = [...selected].some((path) => {
-						const source = tracked.find((item) => item.path === path);
-						return (
-							(file.item === 'added' && contains(file.path, path)) ||
-							(source?.kind === 'dir' && ['added', 'deleted', 'replaced'].includes(source.item) && contains(path, file.path)) ||
-							source?.movedFrom === file.path ||
-							source?.movedTo === file.path
-						);
-					});
-					if (mandatory && !selected.has(file.path)) {
-						selected.add(file.path);
-						reasons.push(
-							translate('svn.relatedPathAddedParentDirectoryDescendantOrOther', {
-								path: file.path,
-							}),
-						);
-						added = true;
-					}
-				}
-			}
-			paths = [...selected];
-			if (snapshot.files.some((file) => paths.includes(file.path) && (isConflict(file) || ['missing', 'obstructed', 'incomplete'].includes(file.item)))) {
-				fail(translate('svn.theCommitScopeIncludesConflictedMissingOrObstructed'));
-			}
-		} else if (['revert', 'delete', 'add'].includes(input.action)) {
-			for (const file of snapshot.files) {
-				if (paths.some((path) => contains(path, file.path)) && !paths.includes(file.path) && (isChanged(file) || file.item === 'unversioned' || file.item === 'ignored')) {
-					paths.push(file.path);
-				}
-			}
-		}
-		if (['add', 'delete', 'rename'].includes(input.action)) {
-			const diskPaths: string[] = [];
-
-			const visit = async (path: string): Promise<void> => {
-				if (diskPaths.length > 2000) {
-					fail(translate('svn.theScopeExceedsDiskEntriesSelectASmaller'));
-				}
-				diskPaths.push(path);
-				const target = await this.local(wc, path);
-				try {
-					if ((await lstat(target)).isDirectory()) {
-						for (const name of (await readdir(target)).sort()) {
-							if (name !== '.svn') {
-								await visit(normalized(join(path, name)));
-							}
-						}
-					}
-				} catch (error) {
-					if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-						throw error;
-					}
-				}
-			};
-
-			for (const path of input.paths) {
-				await visit(path);
-			}
-			paths = [...new Set([...paths, ...diskPaths])];
-			if (diskPaths.length > input.paths.length) {
-				reasons.push(translate('svn.thisDirectoryOperationIncludesTheFollowingDescendantsOn'));
-			}
-		}
-		if (input.action === 'add') {
-			for (const path of input.paths) {
-				let ancestor = normalized(dirname(path));
-				while (ancestor !== '.') {
-					const entry = snapshot.files.find((file) => file.path === ancestor);
-					if (entry && !['unversioned', 'ignored'].includes(entry.item)) {
-						break;
-					}
-					if (!paths.includes(ancestor)) {
-						paths.push(ancestor);
-						reasons.push(
-							translate('svn.addingToVersionControlRequiresThisParentDirectory', {
-								ancestor: ancestor,
-							}),
-						);
-					}
-					ancestor = normalized(dirname(ancestor));
-				}
-			}
-		}
-		if (input.action === 'rename') {
-			if (input.paths.length !== 1 || input.paths[0] === '.') {
-				fail(translate('svn.selectOneFileOrDirectoryToRename'));
-			}
-			if (!input.destination) {
-				fail(translate('svn.enterANewRelativePath'));
-			}
-			const target = await this.local(wc, input.destination!);
-			try {
-				await lstat(target);
-				fail(translate('svn.theDestinationExistsAndCannotBeOverwritten'));
-			} catch (error) {
-				if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-					throw error;
-				}
-			}
-			paths.push(input.destination!);
-			reasons.push(
-				translate('svn.moveDestination', {
-					destination: input.destination,
-				}),
-			);
-		}
-		if (input.action === 'ignore') {
-			const parents = [...new Set(input.paths.map((path) => normalized(dirname(path))))];
-			for (const path of parents) {
-				if (!paths.includes(path)) {
-					paths.push(path);
-					reasons.push(
-						translate('svn.theSvnIgnorePropertyOfParentDirectoryWill', {
-							path: path,
-						}),
-					);
-				}
-			}
-			for (const path of input.paths) {
-				if (/[\r\n*?\[\]]/.test(basename(path))) {
-					fail(translate('svn.thisFilenameContainsSvnIgnoreWildcardsAndCannot'));
-				}
-			}
-		}
-		if (['delete', 'rename'].includes(input.action) && paths.includes('.')) {
-			fail(translate('svn.theWorkingCopyRootCannotBeUsedFor'));
-		}
-		if (paths.length > 2000) {
-			fail(translate('svn.theOperationExceedsPathsSelectASmallerScope'));
-		}
-		const review: Review = {
-			id: randomUUID(),
-			wcId: wc.id,
-			action: input.action,
-			paths: paths.sort(),
-			requested: [...new Set(input.paths)],
-			reasons,
-			createdAt: new Date().toISOString(),
-			fingerprint: await this.fingerprint(wc, snapshot, paths),
-			destination: input.destination,
-			message: input.message,
-		};
-		if (['revert', 'delete'].includes(input.action)) {
-			review.warning =
-				input.action === 'revert' ? translate('svn.revertingDiscardsUncommittedTextAndPropertyChangesIn') : translate('svn.deletingRemovesDiskContentAndSchedulesAnSvn');
-		}
-		if (input.action === 'resolve') {
-			review.warning = translate('svn.markResolvedOnlyAfterManuallyMergingAndSaving');
-		}
-		if (input.action === 'cleanup') {
-			review.warning = translate('svn.makeSureNoOtherSvnClientIsUsing');
-		}
-		if (input.action === 'update') {
-			review.warning = translate('svn.updatingAppliesServerChangesAndMayCauseConflicts');
-		}
-		if (this.reviews.size > 100) {
-			this.reviews.delete(this.reviews.keys().next().value!);
-		}
-		this.reviews.set(review.id, review);
-		return structuredClone(review);
+		return this.read(() => this.prepareReview(input));
 	}
 
 	async execute(reviewId: string): Promise<Operation> {
@@ -810,10 +699,15 @@ export class SvnService {
 			fail(translate('svn.thisReviewWasAlreadyExecutedReviewTheScope'), 'stale');
 		}
 		this.reviews.delete(reviewId);
+		const content = this.reviewContents.get(reviewId);
+		this.reviewContents.delete(reviewId);
 
 		return this.enqueue(wc.path, wc.id, review.action, async (signal, log) => {
 			const snapshot = await this.scan(wc);
-			if ((await this.fingerprint(wc, snapshot, review.paths)) !== review.fingerprint) {
+			if (
+				(await this.fingerprint(wc, snapshot, review.paths)) !== review.fingerprint ||
+				(review.sourceFingerprint && review.sourceFingerprint !== (await this.conflictFingerprint(wc, snapshot, review.paths[0])))
+			) {
 				fail(translate('svn.filesOrPropertiesChangedAfterReviewRefreshAnd'), 'stale');
 			}
 			if (Date.now() - new Date(review.createdAt).getTime() > 10 * 60 * 1000) {
@@ -825,7 +719,77 @@ export class SvnService {
 			const targets = review.paths.map((path) => peg(resolve(wc.path, path)));
 			const options = { cwd: wc.path, signal, onData: log, timeout: 60 * 60 * 1000 };
 			const repo = this.repo(wc);
-			if (review.action === 'commit') {
+			if (['recover', 'restore-backup', 'resolve-local', 'resolve-incoming', 'apply-merge', 'merge'].includes(review.action)) {
+				const path = review.paths[0];
+				const target = await this.local(wc, path);
+				const current = await regularContent(target);
+				const fingerprint = await this.conflictFingerprint(wc, snapshot, path);
+
+				const validate = async (temporary?: string): Promise<void> => {
+					if (signal.aborted) {
+						throw new SvnError({ kind: 'cancelled', message: translate('svn.queuedOperationCancelled') });
+					}
+					const fresh = await this.scan(wc, false, temporary ? normalized(relative(wc.path, temporary)) : undefined);
+					if ((await this.fingerprint(wc, fresh, review.paths)) !== review.fingerprint || (await this.conflictFingerprint(wc, fresh, path)) !== fingerprint) {
+						fail(translate('fileVersions.mergeStale'), 'stale');
+					}
+				};
+
+				await validate();
+				const backup = await this.backups.create(wc.id, path, review.action, current);
+				log(translate('fileVersions.backupCreated', { id: backup.id, path }) + '\n');
+				if (review.action === 'merge') {
+					if (!this.launchMerge) {
+						fail(translate('fileVersions.toolUnavailable'));
+					}
+					const conflict = await this.textConflict(wc, path, snapshot);
+					const id = randomUUID();
+					const directory = join(this.store.directory, 'merges', id);
+					await mkdir(directory, { recursive: true, mode: 0o700 });
+					const inputs = {
+						local: join(directory, `local${extname(path)}`),
+						incoming: join(directory, `incoming${extname(path)}`),
+						base: join(directory, `base${extname(path)}`),
+						output: join(directory, `result${extname(path)}`),
+					};
+					for (const side of ['local', 'incoming', 'base'] as const) {
+						await writeFile(inputs[side], await regularContent(conflict[side]), { mode: 0o400 });
+					}
+					await writeFile(inputs.output, current, { mode: 0o600 });
+					const record: MergeRecord = {
+						id,
+						wcId: wc.id,
+						path,
+						fingerprint,
+						baseRevision: conflict.baseRevision,
+						incomingRevision: conflict.incomingRevision,
+						initialHash: contentHash(current),
+					};
+					await writeRecord(join(directory, 'session.json'), record);
+					await validate();
+					await this.launchMerge!(inputs, signal);
+					log(translate('fileVersions.mergeOpened') + '\n');
+				} else {
+					if (!content) {
+						fail(translate('fileVersions.reviewExpired'), 'stale');
+					}
+					if (review.action === 'apply-merge') {
+						const record = await this.mergeRecord(wc.id, path, review.mergeId);
+						if (
+							!record ||
+							record.fingerprint !== fingerprint ||
+							contentHash(await regularContent(join(this.store.directory, 'merges', record!.id, `result${extname(path)}`))) !== contentHash(content!)
+						) {
+							fail(translate('fileVersions.mergeStale'), 'stale');
+						}
+					}
+					await replaceContent(target, content!, validate);
+					if (['resolve-local', 'resolve-incoming', 'apply-merge'].includes(review.action)) {
+						await this.command(['resolve', '--accept', 'working', '--depth', 'empty', '--', peg(target)], options, repo);
+					}
+					log(translate('fileVersions.contentRestored', { path }) + '\n');
+				}
+			} else if (review.action === 'commit') {
 				const messageFile = join(this.store.directory, `message-${review.id}.txt`);
 				await writeFile(messageFile, review.message!, { mode: 0o600 });
 				try {
@@ -1033,6 +997,302 @@ export class SvnService {
 		} while (pending !== this.operationWrites);
 	}
 
+	private async prepareReview(input: RpcMap['review']['input']): Promise<Review> {
+		const wc = this.wc(input.wcId);
+		if (!input.paths.length && !['update', 'cleanup'].includes(input.action)) {
+			fail(translate('svn.selectAnOperationTarget'));
+		}
+		for (const path of input.paths) {
+			await this.local(wc, path);
+		}
+		const snapshot = await this.scan(wc);
+		if (
+			snapshot.files.some(
+				(file) =>
+					file.external &&
+					input.paths.some(
+						(path) =>
+							contains(file.path, path) ||
+							(['delete', 'rename', 'revert', 'add', 'recover', 'restore-backup', 'merge', 'apply-merge', 'resolve-local', 'resolve-incoming'].includes(
+								input.action,
+							) &&
+								contains(path, file.path)),
+					),
+			)
+		) {
+			fail(translate('svn.theScopeIncludesAnExternalManageDirectoryExternals'));
+		}
+		let paths = [...new Set(input.paths)];
+		const reasons: string[] = [];
+		if (input.action === 'commit') {
+			if (!input.message?.trim()) {
+				fail(translate('svn.enterACommitMessage'));
+			}
+			const tracked = snapshot.files.filter(isChanged);
+			for (const path of paths) {
+				if (!tracked.some((file) => file.path === path)) {
+					fail(
+						translate('svn.fileStatusHasChangedRefreshFirst', {
+							path: path,
+						}),
+						'stale',
+					);
+				}
+			}
+			const selected = new Set(paths);
+			let added = true;
+			while (added) {
+				added = false;
+				for (const file of tracked) {
+					const mandatory = [...selected].some((path) => {
+						const source = tracked.find((item) => item.path === path);
+						return (
+							(file.item === 'added' && contains(file.path, path)) ||
+							(source?.kind === 'dir' && ['added', 'deleted', 'replaced'].includes(source.item) && contains(path, file.path)) ||
+							source?.movedFrom === file.path ||
+							source?.movedTo === file.path
+						);
+					});
+					if (mandatory && !selected.has(file.path)) {
+						selected.add(file.path);
+						reasons.push(
+							translate('svn.relatedPathAddedParentDirectoryDescendantOrOther', {
+								path: file.path,
+							}),
+						);
+						added = true;
+					}
+				}
+			}
+			paths = [...selected];
+			if (snapshot.files.some((file) => paths.includes(file.path) && (isConflict(file) || ['missing', 'obstructed', 'incomplete'].includes(file.item)))) {
+				fail(translate('svn.theCommitScopeIncludesConflictedMissingOrObstructed'));
+			}
+		} else if (['revert', 'delete', 'add'].includes(input.action)) {
+			for (const file of snapshot.files) {
+				if (paths.some((path) => contains(path, file.path)) && !paths.includes(file.path) && (isChanged(file) || file.item === 'unversioned' || file.item === 'ignored')) {
+					paths.push(file.path);
+				}
+			}
+		}
+		if (['add', 'delete', 'rename'].includes(input.action)) {
+			const diskPaths: string[] = [];
+
+			const visit = async (path: string): Promise<void> => {
+				if (diskPaths.length > 2000) {
+					fail(translate('svn.theScopeExceedsDiskEntriesSelectASmaller'));
+				}
+				diskPaths.push(path);
+				const target = await this.local(wc, path);
+				try {
+					if ((await lstat(target)).isDirectory()) {
+						for (const name of (await readdir(target)).sort()) {
+							if (name !== '.svn') {
+								await visit(normalized(join(path, name)));
+							}
+						}
+					}
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+						throw error;
+					}
+				}
+			};
+
+			for (const path of input.paths) {
+				await visit(path);
+			}
+			paths = [...new Set([...paths, ...diskPaths])];
+			if (diskPaths.length > input.paths.length) {
+				reasons.push(translate('svn.thisDirectoryOperationIncludesTheFollowingDescendantsOn'));
+			}
+		}
+		if (input.action === 'add') {
+			for (const path of input.paths) {
+				let ancestor = normalized(dirname(path));
+				while (ancestor !== '.') {
+					const entry = snapshot.files.find((file) => file.path === ancestor);
+					if (entry && !['unversioned', 'ignored'].includes(entry.item)) {
+						break;
+					}
+					if (!paths.includes(ancestor)) {
+						paths.push(ancestor);
+						reasons.push(
+							translate('svn.addingToVersionControlRequiresThisParentDirectory', {
+								ancestor: ancestor,
+							}),
+						);
+					}
+					ancestor = normalized(dirname(ancestor));
+				}
+			}
+		}
+		if (input.action === 'rename') {
+			if (input.paths.length !== 1 || input.paths[0] === '.') {
+				fail(translate('svn.selectOneFileOrDirectoryToRename'));
+			}
+			if (!input.destination) {
+				fail(translate('svn.enterANewRelativePath'));
+			}
+			const target = await this.local(wc, input.destination!);
+			try {
+				await lstat(target);
+				fail(translate('svn.theDestinationExistsAndCannotBeOverwritten'));
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+					throw error;
+				}
+			}
+			paths.push(input.destination!);
+			reasons.push(
+				translate('svn.moveDestination', {
+					destination: input.destination,
+				}),
+			);
+		}
+		if (input.action === 'ignore') {
+			const parents = [...new Set(input.paths.map((path) => normalized(dirname(path))))];
+			for (const path of parents) {
+				if (!paths.includes(path)) {
+					paths.push(path);
+					reasons.push(
+						translate('svn.theSvnIgnorePropertyOfParentDirectoryWill', {
+							path: path,
+						}),
+					);
+				}
+			}
+			for (const path of input.paths) {
+				if (/[\r\n*?\[\]]/.test(basename(path))) {
+					fail(translate('svn.thisFilenameContainsSvnIgnoreWildcardsAndCannot'));
+				}
+			}
+		}
+		if (['delete', 'rename'].includes(input.action) && paths.includes('.')) {
+			fail(translate('svn.theWorkingCopyRootCannotBeUsedFor'));
+		}
+		let content: Buffer | undefined;
+		let sourceFingerprint: string | undefined;
+		let preview: RpcMap['diff']['output'] | undefined;
+		const fileActions = ['recover', 'restore-backup', 'resolve-local', 'resolve-incoming', 'merge', 'apply-merge'];
+		if (fileActions.includes(input.action)) {
+			if (paths.length !== 1 || paths[0] === '.') {
+				fail(translate('fileVersions.singleFile'));
+			}
+			const path = paths[0];
+			const file = snapshot.files.find((entry) => entry.path === path);
+			const target = await this.local(wc, path);
+			const current = await regularContent(target);
+			sourceFingerprint = await this.conflictFingerprint(wc, snapshot, path);
+			if (!file || file.kind !== 'file' || file.copied || file.movedFrom || file.movedTo || !['normal', 'modified', 'conflicted'].includes(file.item)) {
+				fail(translate('fileVersions.existingOnly'));
+			}
+			if (input.action !== 'merge') {
+				await assertWritableContent(target);
+			}
+			if (['recover', 'restore-backup'].includes(input.action)) {
+				if (isConflict(file!)) {
+					fail(translate('fileVersions.resolveFirst'));
+				}
+				if (input.action === 'recover' && (!Number.isSafeInteger(input.revision) || input.revision! < 1)) {
+					fail(translate('fileVersions.enterRevision'));
+				}
+				content = input.action === 'recover' ? await this.historicalContent(wc, path, input.revision!) : await this.backups.content(wc.id, path, input.backupId ?? '');
+			} else {
+				const conflict = await this.textConflict(wc, path, snapshot);
+				if (input.action === 'apply-merge') {
+					const record = await this.mergeRecord(wc.id, path, input.mergeId);
+					if (!record || record.fingerprint !== (await this.conflictFingerprint(wc, snapshot, path))) {
+						fail(translate('fileVersions.mergeStale'), 'stale');
+					}
+					content = await regularContent(join(this.store.directory, 'merges', record!.id, `result${extname(path)}`));
+					if (contentHash(content) === record!.initialHash || this.hasMarkers(content) || textContent(content) === undefined) {
+						fail(translate('fileVersions.unfinishedMerge'));
+					}
+				} else if (input.action !== 'merge') {
+					content = await regularContent(input.action === 'resolve-local' ? conflict.local : conflict.incoming);
+				}
+			}
+			if (input.action === 'recover') {
+				reasons.push(translate('fileVersions.reviewSource', { revision: input.revision }));
+			} else if (input.action === 'restore-backup') {
+				reasons.push(translate('fileVersions.reviewBackup'));
+			} else if (input.action === 'apply-merge') {
+				reasons.push(translate('fileVersions.reviewResult'));
+			} else if (input.action === 'resolve-local' || input.action === 'resolve-incoming') {
+				reasons.push(translate(input.action === 'resolve-local' ? 'fileVersions.reviewLocal' : 'fileVersions.reviewIncoming'));
+			}
+			if (content) {
+				preview = await contentDiff(join(this.store.directory, 'previews'), current, content, this.requestContext.getStore());
+			}
+		}
+		if (input.action === 'resolve') {
+			for (const path of paths) {
+				const file = snapshot.files.find((entry) => entry.path === path);
+				if (!file || !isConflict(file)) {
+					fail(translate('fileVersions.noConflict'), 'stale');
+				}
+				if (file!.item === 'conflicted' && file!.kind === 'file' && this.hasMarkers(await regularContent(await this.local(wc, path)))) {
+					fail(translate('fileVersions.unfinishedMerge'));
+				}
+			}
+		}
+		if (paths.length > 2000) {
+			fail(translate('svn.theOperationExceedsPathsSelectASmallerScope'));
+		}
+		const review: Review = {
+			id: randomUUID(),
+			wcId: wc.id,
+			action: input.action,
+			paths: paths.sort(),
+			requested: [...new Set(input.paths)],
+			reasons,
+			createdAt: new Date().toISOString(),
+			fingerprint: await this.fingerprint(wc, snapshot, paths),
+			destination: input.destination,
+			message: input.message,
+			revision: input.revision,
+			backupId: input.backupId,
+			mergeId: input.mergeId,
+			preview,
+			sourceFingerprint,
+		};
+		if (sourceFingerprint && sourceFingerprint !== (await this.conflictFingerprint(wc, await this.scan(wc), paths[0]))) {
+			fail(translate('fileVersions.mergeStale'), 'stale');
+		}
+		if (fileActions.includes(input.action)) {
+			review.warning = translate(input.action === 'merge' ? 'fileVersions.mergeWarning' : 'fileVersions.overwriteWarning');
+		}
+		if (['revert', 'delete'].includes(input.action)) {
+			review.warning =
+				input.action === 'revert' ? translate('svn.revertingDiscardsUncommittedTextAndPropertyChangesIn') : translate('svn.deletingRemovesDiskContentAndSchedulesAnSvn');
+		}
+		if (input.action === 'resolve') {
+			review.warning = translate('svn.markResolvedOnlyAfterManuallyMergingAndSaving');
+		}
+		if (input.action === 'cleanup') {
+			review.warning = translate('svn.makeSureNoOtherSvnClientIsUsing');
+		}
+		if (input.action === 'update') {
+			review.warning = translate('svn.updatingAppliesServerChangesAndMayCauseConflicts');
+		}
+		if (this.reviews.size >= 20) {
+			const oldest = this.reviews.keys().next().value!;
+			this.reviews.delete(oldest);
+			this.reviewContents.delete(oldest);
+		}
+		if (content) {
+			while ([...this.reviewContents.values()].reduce((sum, bytes) => sum + bytes.length, 0) + content.length > 64 * 1024 * 1024) {
+				const oldest = this.reviewContents.keys().next().value!;
+				this.reviewContents.delete(oldest);
+				this.reviews.delete(oldest);
+			}
+			this.reviewContents.set(review.id, content);
+		}
+		this.reviews.set(review.id, review);
+		return structuredClone(review);
+	}
+
 	private assertRequestActive(): void {
 		if (this.requestContext.getStore()?.aborted) {
 			throw new SvnError({
@@ -1126,7 +1386,7 @@ export class SvnService {
 		return target;
 	}
 
-	private async command(args: string[], options: Parameters<Runner['run']>[1] = {}, repository?: Repository): Promise<{ stdout: string; stderr: string }> {
+	private async command(args: string[], options: Parameters<Runner['run']>[1] = {}, repository?: Repository): Promise<{ stdout: string; stderr: string; bytes?: Buffer }> {
 		const target =
 			args
 				.slice(1)
@@ -1186,7 +1446,15 @@ export class SvnService {
 		if (!entry) {
 			fail(translate('svn.unableToReadSvnWorkingCopyInformation'));
 		}
+		const textConflict = arr<any>(entry.conflict).find((conflict) => conflict.type === 'text');
+		const versions = arr<Record<string, string>>(textConflict?.version);
 		return {
+			textConflict: textConflict
+				? {
+						baseRevision: versions.find((version) => version.side === 'source-left')?.revision ?? '',
+						incomingRevision: versions.find((version) => version.side === 'source-right')?.revision ?? '',
+					}
+				: undefined,
 			path: entry.path,
 			rootPath: str(entry['wc-info']?.['wcroot-abspath']),
 			url: str(entry.url),
@@ -1199,7 +1467,7 @@ export class SvnService {
 		};
 	}
 
-	private async scan(wc: WorkingCopy, remote = false): Promise<Snapshot> {
+	private async scan(wc: WorkingCopy, remote = false, ignoredPath?: string): Promise<Snapshot> {
 		await this.local(wc, '.');
 		const result = await this.command(
 			['status', '--xml', '--verbose', '--no-ignore', '--ignore-externals', ...(remote ? ['--show-updates'] : []), peg(wc.path)],
@@ -1253,6 +1521,12 @@ export class SvnService {
 				external: status.item === 'external' || status['file-external'] === 'true',
 			});
 		}
+		if (ignoredPath) {
+			const index = files.findIndex((file) => file.path === ignoredPath);
+			if (index >= 0) {
+				files.splice(index, 1);
+			}
+		}
 		files.sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'));
 		return {
 			wcId: wc.id,
@@ -1263,6 +1537,99 @@ export class SvnService {
 			remoteRevision: target?.against?.revision,
 			remoteChanges: remote ? remoteChanges : undefined,
 		};
+	}
+
+	private async historicalContent(wc: WorkingCopy, path: string, revision: number): Promise<Buffer> {
+		if (!Number.isSafeInteger(revision) || revision < 0) {
+			fail(translate('fileVersions.enterRevision'));
+		}
+		const target = await this.local(wc, path);
+		const result = await this.command(['cat', '-r', String(revision), '--', peg(target)], { cwd: wc.path, binary: true }, this.repo(wc));
+		return result.bytes!;
+	}
+
+	private hasMarkers(bytes: Buffer): boolean {
+		return /^(?:<{7}|>{7}|\|{7})(?: |$)/m.test(textContent(bytes) ?? '');
+	}
+
+	private async textConflict(wc: WorkingCopy, path: string, snapshot: Snapshot): Promise<MergeInputs & { baseRevision: string; incomingRevision: string }> {
+		const file = snapshot.files.find((entry) => entry.path === path);
+		if (!file || file.item !== 'conflicted' || file.props === 'conflicted' || file.treeConflicted || file.kind !== 'file') {
+			fail(translate('fileVersions.textConflictOnly'));
+		}
+		const target = await this.local(wc, path);
+		const info = await this.infoAt(target, wc.path, this.repo(wc));
+		const conflict = info.conflicts.find((entry) => entry.type === 'text');
+		if (!conflict) {
+			fail(translate('fileVersions.textConflictOnly'));
+		}
+		const inputs = { base: '', local: '', incoming: '', output: target, baseRevision: '', incomingRevision: '' };
+		for (const [side, key] of [
+			['base', 'prev-base-file'],
+			['local', 'prev-wc-file'],
+			['incoming', 'cur-base-file'],
+		] as const) {
+			const value = str(conflict![key]);
+			if (!value) {
+				fail(translate('fileVersions.textConflictOnly'));
+			}
+			inputs[side] = await this.local(wc, normalized(relative(wc.path, resolve(dirname(target), value))));
+			if (textContent(await regularContent(inputs[side])) === undefined) {
+				fail(translate('fileVersions.textConflictOnly'));
+			}
+		}
+		for (const version of arr<Record<string, string>>(conflict!.version as Record<string, string> | Record<string, string>[])) {
+			if (version.side === 'source-left') {
+				inputs.baseRevision = version.revision;
+			} else if (version.side === 'source-right') {
+				inputs.incomingRevision = version.revision;
+			}
+		}
+		return inputs;
+	}
+
+	private async conflictFingerprint(wc: WorkingCopy, snapshot: Snapshot, path: string): Promise<string> {
+		const hash = createHash('sha256').update(await this.fingerprint(wc, snapshot, [path]));
+		const info = await this.infoAt(await this.local(wc, path), wc.path, this.repo(wc));
+		hash.update(
+			JSON.stringify(info.conflicts, (_key, value) =>
+				value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value,
+			),
+		);
+		for (const conflict of info.conflicts) {
+			for (const key of ['prev-base-file', 'prev-wc-file', 'cur-base-file']) {
+				const value = str(conflict[key]);
+				if (value) {
+					const target = await this.local(wc, normalized(relative(wc.path, resolve(dirname(resolve(wc.path, path)), value))));
+					hash.update(await regularContent(target));
+				}
+			}
+		}
+		return hash.digest('hex');
+	}
+
+	private async mergeRecord(wcId: string, path: string, id?: string): Promise<MergeRecord | undefined> {
+		const directory = join(this.store.directory, 'merges');
+		const names = await readdir(directory).catch((error: NodeJS.ErrnoException) => {
+			if (error.code === 'ENOENT') {
+				return [];
+			}
+			throw error;
+		});
+		const records: { record: MergeRecord; time: number }[] = [];
+		for (const name of names) {
+			if (/^[a-f0-9-]{36}$/.test(name) && (!id || id === name)) {
+				const target = join(directory, name, 'session.json');
+				const record = await readRecord(target, mergeRecordSchema);
+				if (record?.wcId === wcId && record.path === path && record.id === name) {
+					if (id) {
+						return record;
+					}
+					records.push({ record, time: (await lstat(target)).mtimeMs });
+				}
+			}
+		}
+		return records.sort((a, b) => b.time - a.time)[0]?.record;
 	}
 
 	private async fingerprint(wc: WorkingCopy, snapshot: Snapshot, paths: string[]): Promise<string> {

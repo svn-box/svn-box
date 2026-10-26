@@ -9,6 +9,7 @@ import type { AppState, Review, RpcMap } from '../../../shared/types';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { RemoteRepositoryTree, remoteName, type RemoteTreeHandle } from './RemoteRepositoryTree';
+import { DiffView } from './DiffView';
 import { VirtualList } from './VirtualList';
 import { api, errorText } from '../lib/api';
 import { notifyError } from '../lib/feedback';
@@ -508,7 +509,7 @@ export function ReviewDialog({ review, onClose, onExecute }: { review: Review; o
 	const { t } = useTranslation();
 	const [busy, setBusy] = useState(false);
 	const [checked, setChecked] = useState(false);
-	const dangerous = ['revert', 'delete', 'resolve'].includes(review.action);
+	const dangerous = ['revert', 'delete', 'resolve', 'recover', 'restore-backup', 'resolve-local', 'resolve-incoming', 'apply-merge'].includes(review.action);
 	const labels: Record<Review['action'], string> = {
 		commit: t('dialogs.confirmCommit'),
 		update: t('operations.update'),
@@ -519,11 +520,18 @@ export function ReviewDialog({ review, onClose, onExecute }: { review: Review; o
 		revert: t('dialogs.revertSelectedLocalChanges'),
 		resolve: t('dialogs.markAsResolved'),
 		cleanup: t('operations.cleanup'),
+		recover: t('operations.recover'),
+		'restore-backup': t('operations.restore-backup'),
+		'resolve-local': t('operations.resolve-local'),
+		'resolve-incoming': t('operations.resolve-incoming'),
+		merge: t('operations.merge'),
+		'apply-merge': t('operations.apply-merge'),
 	};
 	return (
 		<Modal
 			title={review.action === 'commit' ? t('dialogs.commitReview') : t('dialogs.confirmOperationScope')}
 			description={t('dialogs.filesAndPropertiesWillBeCheckedAgainBefore')}
+			className={review.sourceFingerprint ? 'content-review-dialog' : undefined}
 			wide
 			onClose={onClose}
 		>
@@ -557,6 +565,19 @@ export function ReviewDialog({ review, onClose, onExecute }: { review: Review; o
 					)}
 				/>
 			</div>
+			{review.preview && (
+				<div className="review-content-preview">
+					<p>{t('fileVersions.reviewCaption')}</p>
+					<DiffView
+						labels={{ left: t('fileVersions.current'), right: t('fileVersions.selected') }}
+						emptyMessage={t('fileVersions.noChanges')}
+						text={review.preview.text}
+						unsupported={review.preview.unsupported}
+						loading={false}
+						title={review.paths[0]}
+					/>
+				</div>
+			)}
 			{review.action === 'commit' && <p className="hint">{t('dialogs.onlyThePathsListedAboveWillBeCommitted')}</p>}
 			{dangerous && (
 				<label className="confirm-check">

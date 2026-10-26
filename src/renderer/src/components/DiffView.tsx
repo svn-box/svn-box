@@ -14,6 +14,8 @@ export function DiffView({
 	onCompare,
 	onClose,
 	revision,
+	labels,
+	emptyMessage,
 }: {
 	text: string;
 	loading?: boolean;
@@ -23,6 +25,8 @@ export function DiffView({
 	onCompare?: () => void;
 	onClose?: () => void;
 	revision?: number;
+	labels?: { left: string; right: string };
+	emptyMessage?: string;
 }) {
 	const { t } = useTranslation();
 	const [split, setSplit] = useState(false);
@@ -107,9 +111,15 @@ export function DiffView({
 			) : !text ? (
 				<div className="empty">
 					<FileDiff size={30} />
-					<strong>{revision === undefined ? t('diffView.selectAFileToReviewItsChanges') : t('diffView.noTextOrPropertyDifferencesToDisplayIn')}</strong>
+					<strong>
+						{unsupported
+							? t('diffView.textPreviewUnavailable')
+							: (emptyMessage ?? (revision === undefined ? t('diffView.selectAFileToReviewItsChanges') : t('diffView.noTextOrPropertyDifferencesToDisplayIn')))}
+					</strong>
 					<span>
-						{unsupported || (revision === undefined ? t('diffView.textAndSvnPropertyDiffsAppearHere') : t('diffView.directoryStructureChangesAppearInThisCommitS'))}
+						{unsupported ||
+							(!emptyMessage &&
+								(revision === undefined ? t('diffView.textAndSvnPropertyDiffsAppearHere') : t('diffView.directoryStructureChangesAppearInThisCommitS')))}
 					</span>
 				</div>
 			) : (
@@ -120,11 +130,17 @@ export function DiffView({
 								<span>{unsupported}</span>
 							) : split ? (
 								<>
-									<span>{revision === undefined ? t('diffView.baseOriginal') : `r${revision - 1}`}</span>
-									<span>{revision === undefined ? t('diffView.workingCopyCurrent') : `r${revision}`}</span>
+									<span>{labels?.left ?? (revision === undefined ? t('diffView.baseOriginal') : `r${revision - 1}`)}</span>
+									<span>{labels?.right ?? (revision === undefined ? t('diffView.workingCopyCurrent') : `r${revision}`)}</span>
 								</>
 							) : (
-								<span>{revision === undefined ? t('diffView.baseOriginalContentCurrentWorkingCopyContent') : `− r${revision - 1}　+ r${revision}`}</span>
+								<span>
+									{labels
+										? `− ${labels.left}　+ ${labels.right}`
+										: revision === undefined
+											? t('diffView.baseOriginalContentCurrentWorkingCopyContent')
+											: `− r${revision - 1}　+ r${revision}`}
+								</span>
 							)}
 							{truncated && <span>{t('diffView.previewLimitedToLines')}</span>}
 						</div>

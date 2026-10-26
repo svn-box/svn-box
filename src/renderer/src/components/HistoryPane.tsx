@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { FileVersionsDialog } from './FileVersionsDialog';
 import { useTranslation } from 'react-i18next';
 import { CircleAlert, History, LoaderCircle, RefreshCw, Search, X } from 'lucide-react';
 import { type WorkingCopy, type WorkspaceSession } from '../../../shared/types';
@@ -9,6 +11,7 @@ import { HistoryTimeline } from './HistoryTimeline';
 
 export function HistoryPane({ wc, compareFile }: { wc: WorkingCopy; compareFile: (path: string, revision?: number) => void }) {
 	const { t } = useTranslation();
+	const [versions, setVersions] = useState<{ path: string; revision: number }>();
 	const session = useSessionSlice(wc.id, [
 		'historyTarget',
 		'historySearch',
@@ -90,8 +93,10 @@ export function HistoryPane({ wc, compareFile }: { wc: WorkingCopy; compareFile:
 					repositoryRoot={repositoryRoot}
 					onChange={patchSession}
 					onCompare={(path, revision) => void compareFile(path, revision)}
+					onVersions={(path, revision) => setVersions({ path, revision })}
 				/>
 			)}
+			{versions && <FileVersionsDialog key={`${wc.id}:${versions.path}`} wcId={wc.id} {...versions} onClose={() => setVersions(undefined)} />}
 			<div className="list-footer">
 				<span>{t('historyPane.loadedRecords', { count: logs?.length ?? 0 })}</span>
 				<Button variant="ghost" size="sm" disabled={history.isFetching || !history.hasNextPage || !logs?.length} onClick={() => void history.fetchNextPage()}>

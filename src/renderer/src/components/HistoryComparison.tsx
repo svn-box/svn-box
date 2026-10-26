@@ -12,6 +12,7 @@ export function HistoryComparison({
 	wholeCommit,
 	onClose,
 	onCompare,
+	onVersions,
 }: {
 	wcId: string;
 	path: string;
@@ -19,6 +20,7 @@ export function HistoryComparison({
 	wholeCommit: boolean;
 	onClose: () => void;
 	onCompare?: () => void;
+	onVersions: () => void;
 }) {
 	const { t } = useTranslation();
 	const diff = useDiff(wcId, path, '', revision);
@@ -31,6 +33,9 @@ export function HistoryComparison({
 				<span className="truncate" title={path}>
 					r{revision - 1} → r{revision} · {path === '.' ? t('historyComparison.currentWorkingCopyScope') : path}
 				</span>
+				<Button variant="outline" size="sm" onClick={onVersions}>
+					{t(wholeCommit ? 'fileVersions.rangeAction' : 'fileVersions.showVersions')}
+				</Button>
 				{diff.loading ? (
 					<Button
 						variant="ghost"

@@ -1,3 +1,4 @@
+import { TextConflictActions } from './TextConflictActions';
 import { useTranslation } from 'react-i18next';
 import { Fragment } from 'react';
 import { CircleAlert, Folder, History, Info, LoaderCircle, X } from 'lucide-react';
@@ -150,19 +151,26 @@ function FileDetails({ wc, requestReview, refresh }: { wc: WorkingCopy; requestR
 								? t('detailsPanel.propertyConflictInspectAndManuallyCorrectTheConflicting')
 								: t('detailsPanel.textConflictMergeAndSaveTheFileIn')}
 					</p>
-					{fileInfo.info?.conflicts.length ? <pre>{JSON.stringify(fileInfo.info.conflicts, null, 2)}</pre> : null}
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => {
-							void api.call('system', { wcId: wc.id, path: session.currentPath, action: 'merge' }).catch(showError);
-						}}
-					>
-						{t('detailsPanel.openMergeTool')}
-					</Button>
-					<Button variant="outline" size="sm" onClick={() => void refresh(wc.id)}>
-						{t('workspace.checkResolution')}
-					</Button>
+					{fileInfo.info?.conflicts.length ? (
+						<details>
+							<summary>{t('detailsPanel.viewReadDetails')}</summary>
+							<pre>{JSON.stringify(fileInfo.info.conflicts, null, 2)}</pre>
+						</details>
+					) : null}
+					{currentFile.item === 'conflicted' && currentFile.props !== 'conflicted' && !currentFile.treeConflicted && (
+						<TextConflictActions
+							key={`${wc.id}:${session.currentPath}`}
+							wcId={wc.id}
+							path={session.currentPath}
+							scan={snapshot?.scannedAt}
+							sources={fileInfo.info?.textConflict}
+						/>
+					)}
+					{(currentFile.treeConflicted || currentFile.props === 'conflicted') && (
+						<Button variant="outline" size="sm" onClick={() => void refresh(wc.id)}>
+							{t('workspace.checkResolution')}
+						</Button>
+					)}
 					<Button size="sm" variant="outline" onClick={() => void requestReview('resolve', [session.currentPath])}>
 						{t('detailsPanel.markResolved')}
 					</Button>

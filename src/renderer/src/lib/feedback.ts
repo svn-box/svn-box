@@ -1,4 +1,4 @@
-import { operationLabel, operationHasConflicts } from '../../../shared/operation-log';
+import { operationLabel, operationHasConflicts, operationAction } from '../../../shared/operation-log';
 import { translate } from '../../../shared/i18n';
 import { toast } from 'sonner';
 import type { AppError, Operation } from '../../../shared/types';
@@ -37,14 +37,16 @@ export function notifyOperation(operation: Operation, project: string, openRecor
 			options,
 		);
 	} else if (operation.state === 'success') {
-		const conflicts = operationHasConflicts(operation);
+		const conflicts = operationAction(operation) === 'update' && operationHasConflicts(operation);
 		if (conflicts) {
 			toast.warning(translate('feedback.updateFinishedWithConflictsToResolve'), { ...options, duration: 8000 });
 		} else {
 			toast.success(
-				translate('feedback.completed', {
-					label: operationLabel(operation),
-				}),
+				operationAction(operation) === 'merge'
+					? translate('fileVersions.mergeOpened')
+					: translate('feedback.completed', {
+							label: operationLabel(operation),
+						}),
 				{ ...options, duration: 4500 },
 			);
 		}

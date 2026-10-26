@@ -59,7 +59,7 @@ export function createWorkspaceStore(call: ClientCall, onError: (error: unknown)
 		showDetails: true,
 		sidebarWidth: 280,
 		detailsWidth: 236,
-		diffHeight: 150,
+		diffHeight: 300,
 
 		accept(next, activate = false) {
 			const { sessions: incoming, activeId, ...catalog } = next;

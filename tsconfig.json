@@ -12,6 +12,7 @@
 		"skipLibCheck": true,
 		"resolveJsonModule": true,
 		"allowImportingTsExtensions": true,
+		"noEmit": true,
 		"types": ["node", "vite/client"],
 		"paths": {
 			"@/*": ["./src/renderer/src/*"]

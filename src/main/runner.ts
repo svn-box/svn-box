@@ -85,8 +85,8 @@ export class Runner {
 
 	run(
 		args: string[],
-		options: { cwd?: string; signal?: AbortSignal; timeout?: number; onData?: (text: string) => void; executable?: string; password?: string } = {},
-	): Promise<{ stdout: string; stderr: string }> {
+		options: { cwd?: string; signal?: AbortSignal; timeout?: number; onData?: (text: string) => void; executable?: string; password?: string; binary?: boolean } = {},
+	): Promise<{ stdout: string; stderr: string; bytes?: Buffer }> {
 		if (this.shuttingDown) {
 			return Promise.reject(
 				new SvnError({
@@ -122,6 +122,8 @@ export class Runner {
 			});
 			this.children.add(child);
 			let stdout = '';
+			const chunks: Buffer[] = [];
+			let byteLength = 0;
 			let stderr = '';
 			let cancelled = false;
 			let timedOut = false;
@@ -143,7 +145,9 @@ export class Runner {
 				stop();
 			}, options.timeout ?? 120000);
 			options.signal?.addEventListener('abort', abort, { once: true });
-			child.stdout.setEncoding('utf8');
+			if (!options.binary) {
+				child.stdout.setEncoding('utf8');
+			}
 			child.stderr.setEncoding('utf8');
 
 			const consume = (chunk: string, isError: boolean): void => {
@@ -153,13 +157,26 @@ export class Runner {
 					stdout += chunk;
 				}
 				options.onData?.(redact(chunk));
-				if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > 32 * 1024 * 1024) {
+				if (byteLength + Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > 32 * 1024 * 1024) {
 					oversized = true;
 					stop();
 				}
 			};
 
-			child.stdout.on('data', (chunk: string) => consume(chunk, false));
+			child.stdout.on('data', (chunk: string | Buffer) => {
+				if (options.binary) {
+					const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+					byteLength += bytes.length;
+					if (byteLength + Buffer.byteLength(stderr) > 32 * 1024 * 1024) {
+						oversized = true;
+						stop();
+					} else {
+						chunks.push(bytes);
+					}
+				} else {
+					consume(String(chunk), false);
+				}
+			});
 			child.stderr.on('data', (chunk: string) => consume(chunk, true));
 			child.stdin.on('error', () => {});
 			child.stdin.end(options.password === undefined ? undefined : `${options.password}\n`);
@@ -213,7 +230,7 @@ export class Runner {
 						),
 					);
 				} else {
-					resolve({ stdout, stderr });
+					resolve({ stdout, stderr, ...(options.binary ? { bytes: Buffer.concat(chunks) } : {}) });
 				}
 			});
 		});

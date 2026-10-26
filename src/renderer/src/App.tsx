@@ -1,3 +1,4 @@
+import { FileVersionsDialog } from './components/FileVersionsDialog';
 import { operationAction } from '../../shared/operation-log';
 import { useTranslation } from 'react-i18next';
 import { getTheme } from '../../shared/themes';
@@ -68,6 +69,7 @@ export function App() {
 	const [updateRequest, setUpdateRequest] = useState(0);
 	const [remoteId, setRemoteId] = useState<string>();
 	const [review, setReview] = useState<Review>();
+	const [fileVersions, setFileVersions] = useState<{ wcId: string; path: string; revision?: number }>();
 	const [reviewing, setReviewing] = useState(false);
 	const [bootError, setBootError] = useState('');
 	const [activeRepositoryId, setActiveRepositoryId] = useState<string>();
@@ -373,6 +375,15 @@ export function App() {
 						{t('workspace.compareInFilemerge')}
 					</DropdownMenuItem>
 				),
+				file?.kind === 'file' && (
+					<DropdownMenuItem
+						key="versions"
+						icon={<History />}
+						onSelect={() => setFileVersions({ wcId: activeId!, path, revision: Number(file.revision) > 0 ? Number(file.revision) : undefined })}
+					>
+						{t('fileVersions.showVersions')}
+					</DropdownMenuItem>
+				),
 				<DropdownMenuItem
 					key="history"
 					icon={<History />}
@@ -413,12 +424,12 @@ export function App() {
 				),
 			],
 			[
-				file && isConflict(file) && (
+				file?.item === 'conflicted' && file.props !== 'conflicted' && !file.treeConflicted && (
 					<DropdownMenuItem
 						key="merge"
 						icon={<Code2 />}
 						onSelect={() => {
-							void api.call('system', { wcId: activeId!, path, action: 'merge' }).catch(showError);
+							void requestReview('merge', [path]);
 						}}
 					>
 						{t('workspace.openInExternalMergeTool')}
@@ -750,6 +761,7 @@ export function App() {
 				/>
 			)}
 
+			{fileVersions && <FileVersionsDialog key={`${fileVersions.wcId}:${fileVersions.path}`} {...fileVersions} onClose={() => setFileVersions(undefined)} />}
 			{review && (
 				<ReviewDialog
 					review={review}

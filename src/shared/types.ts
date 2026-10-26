@@ -113,6 +113,7 @@ export interface SvnInfo {
 	depth: string;
 	kind: string;
 	conflicts: Record<string, unknown>[];
+	textConflict?: { baseRevision: string; incomingRevision: string };
 }
 export interface LogEntry {
 	revision: number;
@@ -160,7 +161,43 @@ export interface AppError {
 	detail?: string;
 	auth?: AuthenticationContext;
 }
-export type Action = 'commit' | 'update' | 'add' | 'rename' | 'delete' | 'ignore' | 'revert' | 'resolve' | 'cleanup';
+export type Action =
+	| 'commit'
+	| 'update'
+	| 'add'
+	| 'rename'
+	| 'delete'
+	| 'ignore'
+	| 'revert'
+	| 'resolve'
+	| 'cleanup'
+	| 'recover'
+	| 'restore-backup'
+	| 'resolve-local'
+	| 'resolve-incoming'
+	| 'merge'
+	| 'apply-merge';
+export interface FileBackup {
+	id: string;
+	wcId: string;
+	path: string;
+	createdAt: string;
+	reason: Action;
+	bytes: number;
+}
+export interface MergeState {
+	id: string;
+	path: string;
+	baseRevision: string;
+	incomingRevision: string;
+	hasResult: boolean;
+	markers: boolean;
+	preview: DiffResult;
+}
+export interface RevisionRange {
+	from: number;
+	to: number | 'WORKING';
+}
 export interface Review {
 	id: string;
 	wcId: string;
@@ -173,6 +210,11 @@ export interface Review {
 	createdAt: string;
 	destination?: string;
 	message?: string;
+	revision?: number;
+	backupId?: string;
+	mergeId?: string;
+	preview?: DiffResult;
+	sourceFingerprint?: string;
 }
 export interface Detection {
 	path: string;
@@ -189,7 +231,7 @@ export interface RpcMap {
 	addWorkingCopy: { input: { path: string; name?: string }; output: AppState };
 	addRepository: { input: { url: string; name?: string; credentialId?: string }; output: AppState };
 	bookmark: { input: { repositoryId: string; url: string; name: string; id?: string; remove?: boolean; direction?: 'up' | 'down' }; output: AppState };
-	compare: { input: { wcId: string; path: string; revision?: number }; output: void };
+	compare: { input: { wcId: string; path: string; revision?: number; range?: RevisionRange }; output: void };
 	manage: {
 		input: {
 			entity: 'workingCopy' | 'repository' | 'group';
@@ -209,10 +251,16 @@ export interface RpcMap {
 	info: { input: { wcId: string; path: string }; output: SvnInfo };
 	properties: { input: { wcId: string; path: string }; output: Property[] };
 	diff: { input: { wcId: string; path: string; revision?: number }; output: DiffResult };
+	rangeDiff: { input: { wcId: string; path: string } & RevisionRange; output: DiffResult };
+	backups: { input: { wcId: string; path: string }; output: FileBackup[] };
+	mergeState: { input: { wcId: string; path: string }; output: MergeState | null };
 	log: { input: { wcId: string; path?: string; before?: number }; output: LogEntry[] };
 	list: { input: { url: string; repositoryId?: string }; output: RemoteEntry[] };
 	checkout: { input: { url: string; destination: string; repositoryId?: string; depth: 'infinity' | 'immediates' | 'files' | 'empty' }; output: Operation };
-	review: { input: { wcId: string; action: Action; paths: string[]; destination?: string; message?: string }; output: Review };
+	review: {
+		input: { wcId: string; action: Action; paths: string[]; destination?: string; message?: string; revision?: number; backupId?: string; mergeId?: string };
+		output: Review;
+	};
 	execute: { input: { reviewId: string }; output: Operation };
 	operations: { input: undefined; output: Operation[] };
 	copyOperation: { input: { id: string }; output: void };
@@ -230,7 +278,7 @@ export interface RequestOptions {
 }
 
 export const isCancellableRpc = (method: RpcName): boolean =>
-	['list', 'addRepository', 'checkout', 'log', 'status', 'info', 'properties', 'diff', 'compare', 'detect'].includes(method);
+	['list', 'addRepository', 'checkout', 'log', 'status', 'info', 'properties', 'diff', 'compare', 'detect', 'rangeDiff', 'mergeState', 'review'].includes(method);
 
 export type Reply<T> = { ok: true; value: T } | { ok: false; error: AppError };
 export interface SvnboxApi {

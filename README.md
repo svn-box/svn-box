@@ -9,7 +9,7 @@
     <a href="#screenshots">Screenshots</a> ·
     <a href="https://github.com/svn-box/svn-box/issues">Report an issue</a>
   </p>
-  <p><sub>v0.1.6 · macOS 13+ · Apple Silicon (arm64)</sub></p>
+  <p><sub>v0.2.0 · macOS 13+ · Apple Silicon (arm64)</sub></p>
 </div>
 
 svnbox (仓盒) brings your Subversion projects into one desktop workspace. Switch between working copies, review changes, commit selected paths, and explore history without losing your place.
@@ -23,6 +23,8 @@ The app interface supports **English and Simplified Chinese**, with instant swit
 - **Change review** — browse a compact file tree, filter SVN states, and compare text and property changes with unified or side-by-side diffs.
 - **Selective commits** — choose paths, review the actual commit scope, reuse recent messages, and recover drafts after restarting the app.
 - **History** — explore a collapsible timeline, load earlier revisions, inspect changed paths, and view differences within each commit.
+- **File recovery** — compare any two revisions or a revision with local contents, then recover an existing file with an automatic local backup.
+- **Text conflicts** — keep pre-update local contents, accept incoming contents, or use FileMerge for three-way merging. Review and apply the result explicitly.
 - **SVN operations** — update, add, rename, delete, ignore, discard local changes, and clean up working copies. Inspect conflicts and open an external comparison or merge tool.
 - **Connection credentials** — save encrypted credentials for a connection or repository path and share them across matching child URLs.
 - **Operation logs** — inspect progress and command output, cancel running tasks, filter or copy logs, and clear completed records.
@@ -98,6 +100,18 @@ Use file context menus for add, rename, delete, ignore, and discard operations. 
 Switch to the history view or open a file or directory's history from its context menu. Expand a date or commit to inspect changed paths. Open the comparison inside a commit to review its diff.
 
 The search box filters records already loaded. Use the earlier-history action to query additional revisions from the server.
+
+### Compare and recover versions
+
+Choose **Compare / Recover Versions…** from a file's context menu, or open it from a commit's inline diff. Enter the repository revision numbers to compare, or select Working Copy for the right side. To recover a file, select its source revision and choose **Recover This Version…**. Review the exact changes and confirm the overwrite.
+
+Recovery supports existing versioned regular files up to 32 MiB, including binary files without a text preview. It restores content only; properties and the working copy baseline stay unchanged, and nothing is committed automatically. The Local Backups section lets you review and restore the content saved before an overwrite. Backups remain on this Mac across restarts.
+
+### Resolve text conflicts
+
+Select a conflicted file and use the inspector to keep its complete pre-update local contents, accept the complete incoming contents, or open a three-way merge. FileMerge uses base, local and incoming snapshots with a separate output file. Save in FileMerge, return to svnbox and choose **Check Merge Result**, then review and apply it. Closing the tool does not mark the conflict resolved.
+
+FileMerge requires Xcode. Other configured tools open the source snapshots and output for manual editing. Text conflict actions support UTF-8 text; property, tree and binary conflicts require manual handling. After editing a working file directly, refresh and explicitly mark it resolved.
 
 ### Adjust the workspace
 

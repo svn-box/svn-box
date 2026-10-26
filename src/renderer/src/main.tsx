@@ -13,6 +13,7 @@ import './styles/macos.css';
 import './styles/settings.css';
 import './styles/authentication.css';
 import './styles/operations.css';
+import './styles/file-versions.css';
 class ErrorBoundary extends React.Component<React.PropsWithChildren, { error: string }> {
 	state = { error: '' };
 

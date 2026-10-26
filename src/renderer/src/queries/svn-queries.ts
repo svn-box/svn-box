@@ -1,5 +1,5 @@
 import { QueryClient, infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
-import { isOperationActive, type LogEntry, type Operation, type Snapshot } from '../../../shared/types';
+import { isOperationActive, type LogEntry, type Operation, type Snapshot, type RevisionRange } from '../../../shared/types';
 import type { ClientCall } from '../lib/api-types';
 
 export const queryKeys = {
@@ -104,6 +104,30 @@ export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapsh
 			meta: { wcId, kind: 'diff' },
 		});
 
+	const rangeDiffOptions = (wcId: string, path: string, range: RevisionRange, scan = '') =>
+		queryOptions({
+			queryKey: [...queryKeys.workingCopy(wcId), 'rangeDiff', path, range, range.to === 'WORKING' ? scan : ''] as const,
+			queryFn: ({ signal }) => call('rangeDiff', { wcId, path, ...range }, { signal }),
+			staleTime: range.to === 'WORKING' ? 0 : Infinity,
+			meta: { wcId, kind: 'rangeDiff' },
+		});
+
+	const backupOptions = (wcId: string, path: string) =>
+		queryOptions({
+			queryKey: [...queryKeys.workingCopy(wcId), 'backups', path] as const,
+			queryFn: () => call('backups', { wcId, path }),
+			staleTime: 0,
+			meta: { wcId, kind: 'backups' },
+		});
+
+	const mergeOptions = (wcId: string, path: string, scan = '') =>
+		queryOptions({
+			queryKey: [...queryKeys.workingCopy(wcId), 'merge', path, scan] as const,
+			queryFn: ({ signal }) => call('mergeState', { wcId, path }, { signal }),
+			staleTime: 0,
+			meta: { wcId, kind: 'merge' },
+		});
+
 	const infoOptions = (wcId: string, path: string, scan = '') =>
 		queryOptions({
 			queryKey: [...queryKeys.workingCopy(wcId), 'info', path, scan],
@@ -144,6 +168,9 @@ export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapsh
 		client,
 		statusOptions,
 		diffOptions,
+		rangeDiffOptions,
+		backupOptions,
+		mergeOptions,
 		infoOptions,
 		propertyOptions,
 		historyOptions,

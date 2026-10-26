@@ -1,7 +1,24 @@
 import { translate, UI_RESOURCES } from './i18n';
 import type { Operation } from './types';
 
-const actions = ['commit', 'update', 'add', 'rename', 'delete', 'ignore', 'revert', 'resolve', 'cleanup', 'checkout'] as const;
+const actions = [
+	'commit',
+	'update',
+	'add',
+	'rename',
+	'delete',
+	'ignore',
+	'revert',
+	'resolve',
+	'cleanup',
+	'checkout',
+	'recover',
+	'restore-backup',
+	'resolve-local',
+	'resolve-incoming',
+	'merge',
+	'apply-merge',
+] as const;
 const legacyRevertLabels = new Set(['还原变更', 'Revert Local Changes']);
 
 export function operationAction(operation: Pick<Operation, 'action' | 'label'>): Operation['action'] {

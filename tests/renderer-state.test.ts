@@ -333,3 +333,39 @@ describe('操作事件时序与保留上限', () => {
 		expect(queries.client.getQueryData<Operation[]>(queryKeys.operations)?.some((operation) => operation.id === running.id)).toBe(false);
 	});
 });
+
+describe('文件版本窗口缓存', () => {
+	it('写入后重开窗口可取回新备份及本地差异，其他项目缓存保持隔离', async () => {
+		let changed = false;
+		const saved = { id: 'backup', wcId: 'a', path: 'file.txt', createdAt: '2026-10-27T00:00:00Z', reason: 'recover', bytes: 5 };
+		const call = vi.fn(async (method, input) => {
+			if (method === 'backups') {
+				return changed && input.wcId === 'a' ? [saved] : [];
+			}
+			if (method === 'rangeDiff') {
+				return { text: changed ? 'new contents' : 'old contents' };
+			}
+			if (method === 'status') {
+				return snapshot(input.wcId);
+			}
+			return null;
+		}) as ClientCall;
+		const queries = createSvnQueries(call);
+		clients.push(queries.client);
+		const backups = queries.backupOptions('a', 'file.txt');
+		const other = queries.backupOptions('b', 'file.txt');
+		const range = queries.rangeDiffOptions('a', 'file.txt', { from: 2, to: 'WORKING' });
+		await queries.client.fetchQuery(backups);
+		await queries.client.fetchQuery(other);
+		await queries.client.fetchQuery(range);
+		changed = true;
+		await queries.invalidateWorkingCopy('a', false);
+		expect(queries.client.getQueryState(backups.queryKey)?.isInvalidated).toBe(true);
+		expect(queries.client.getQueryState(range.queryKey)?.isInvalidated).toBe(true);
+		expect(queries.client.getQueryState(other.queryKey)?.isInvalidated).toBe(false);
+		expect(await queries.client.fetchQuery(backups)).toEqual([saved]);
+		expect((await queries.client.fetchQuery(range)).text).toBe('new contents');
+		expect(queries.client.getQueryData(other.queryKey)).toEqual([]);
+		expect((call as ReturnType<typeof vi.fn>).mock.calls.filter(([method, input]) => method === 'backups' && input.wcId === 'b')).toHaveLength(1);
+	});
+});

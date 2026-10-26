@@ -26,6 +26,7 @@ it('识别真实属性冲突及冲突详情，接受人工修正后的工作属�
 	expect((await finish(f.service, await f.service.execute(review.id))).state).toBe('success');
 	expect((await f.service.status(f.second.id)).files.find((file) => file.path === 'README.md')?.props).toBe('conflicted');
 	expect((await f.service.info(f.second.id, 'README.md')).conflicts.length).toBeGreaterThan(0);
+	await expect(f.service.review({ wcId: f.second.id, action: 'resolve-incoming', paths: ['README.md'] })).rejects.toThrow();
 	await svn('propset', 'svnbox:tag', 'resolved', `${f.b}/README.md@`);
 	const resolve = await f.service.review({ wcId: f.second.id, action: 'resolve', paths: ['README.md'] });
 	expect((await finish(f.service, await f.service.execute(resolve.id))).state).toBe('success');
@@ -41,5 +42,6 @@ it('本地修改与上游删除产生树冲突，拒绝直接提交并保留详�
 	const file = (await f.service.status(f.second.id)).files.find((file) => file.path === 'README.md');
 	expect(file?.treeConflicted).toBe(true);
 	expect((await f.service.info(f.second.id, 'README.md')).conflicts.length).toBeGreaterThan(0);
+	await expect(f.service.review({ wcId: f.second.id, action: 'resolve-incoming', paths: ['README.md'] })).rejects.toThrow();
 	await expect(f.service.review({ wcId: f.second.id, action: 'commit', paths: ['README.md'], message: '不能提交冲突' })).rejects.toThrow('冲突');
 }, 30000);
