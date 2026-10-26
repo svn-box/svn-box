@@ -9,7 +9,7 @@
     <a href="#界面预览">界面预览</a> ·
     <a href="https://github.com/svn-box/svn-box/issues">反馈问题</a>
   </p>
-  <p><sub>v0.1.0 · macOS 13+ · Apple Silicon（arm64）</sub></p>
+  <p><sub>v0.1.1 · macOS 13+ · Apple Silicon（arm64）</sub></p>
 </div>
 
 仓盒是一款面向 macOS 的 Subversion 图形客户端。在同一个桌面工作区中管理多个项目，切换工作副本、审阅变更、选择文件提交和查询历史，并保留各个项目的工作上下文。

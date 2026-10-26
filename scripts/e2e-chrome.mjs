@@ -19,6 +19,7 @@ async function inspect(label) {
 		const sidebar = document.querySelector('.sidebar');
 		const divider = document.querySelector('.sidebar-divider');
 		const resizer = document.querySelector('.sidebar-resizer');
+		const statusbar = document.querySelector('.statusbar');
 		const headerRect = header.getBoundingClientRect();
 		const sidebarRect = sidebar.getBoundingClientRect();
 		const dividerRect = divider.getBoundingClientRect();
@@ -28,14 +29,25 @@ async function inspect(label) {
 			sidebarEdge: sidebarRect.right,
 			dividerX: dividerRect.x,
 			dividerRight: dividerRect.right,
-			resizerEdge: resizerRect.x + parseFloat(getComputedStyle(resizer, '::before').left),
+			resizerEdge: resizerRect.x + (resizerRect.width - dividerRect.width) / 2,
+			resizerBottom: resizerRect.bottom,
+			statusbarTop: statusbar.getBoundingClientRect().top,
+			indicatorColor: getComputedStyle(resizer, '::before').backgroundColor,
+			indicatorHeight: parseFloat(getComputedStyle(resizer, '::before').height),
+			keyboardFocused: resizer.matches(':focus-visible'),
 			sidebarY: sidebarRect.y,
 			viewportWidth: innerWidth,
 		};
 	});
 	assert.equal(geometry.headerEdge, geometry.sidebarEdge, `${label}: 标题栏与侧栏边缘对齐`);
 	assert.equal(geometry.dividerX, geometry.sidebarEdge, `${label}: 分隔线紧邻侧栏`);
-	assert.equal(geometry.resizerEdge, geometry.dividerX, `${label}: 拖动高亮与静止分隔线对齐`);
+	assert.equal(geometry.resizerEdge, geometry.dividerX, `${label}: 拖动热区与静止分隔线对齐`);
+	assert.equal(geometry.resizerBottom, geometry.statusbarTop, `${label}: 拖动热区不延伸到状态栏`);
+	if (geometry.keyboardFocused) {
+		assert.ok(geometry.indicatorHeight <= 24, `${label}: 键盘焦点只显示短小提示`);
+	} else {
+		assert.equal(geometry.indicatorColor, 'rgba(0, 0, 0, 0)', `${label}: 悬停和拖动不显示彩色高亮`);
+	}
 
 	const pixels = await instance.evaluate(async ({ BrowserWindow }, geometry) => {
 		const image = await BrowserWindow.getAllWindows()[0].webContents.capturePage();

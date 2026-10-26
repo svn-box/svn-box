@@ -50,7 +50,7 @@ try {
 	await releaseCommand('/usr/bin/hdiutil', ['detach', mount]);
 	mounted = false;
 	const env = { ...buildEnvironment(process.env), SVNBOX_PACKAGED_APP: join(app, 'Contents/MacOS', APP_NAME) };
-	for (const script of ['scripts/e2e.mjs', 'scripts/e2e-themes.mjs', 'scripts/e2e-files.mjs', 'scripts/e2e-auth.mjs']) {
+	for (const script of ['scripts/e2e.mjs', 'scripts/e2e-themes.mjs', 'scripts/e2e-files.mjs', 'scripts/e2e-auth.mjs', 'scripts/e2e-chrome.mjs']) {
 		console.log(`Verifying extracted release: ${script}`);
 		await new Promise<void>((resolve, reject) => {
 			const child = spawn(process.execPath, [script], { env, shell: false, stdio: 'inherit' });

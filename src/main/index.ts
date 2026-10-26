@@ -348,7 +348,7 @@ app.whenReady().then(async () => {
 	if (!ownsInstance) {
 		return;
 	}
-	app.setAboutPanelOptions({ applicationName: '仓盒 svnbox', applicationVersion: '0.1.0', copyright: '© 2026 svnbox' });
+	app.setAboutPanelOptions({ applicationName: '仓盒 svnbox', applicationVersion: app.getVersion(), copyright: '© 2026 svnbox' });
 	const directory = app.getPath('userData');
 	service = new SvnService(new Store(directory), runner, (operation) => window?.webContents.send('svnbox:operation', operation), new SecureVault(directory));
 	try {

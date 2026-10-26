@@ -51,7 +51,7 @@ async function checkSidebarAlignment() {
 			branding: header.textContent.trim() || header.querySelector('svg, img, .brand') !== null,
 			handleTop: handle.top,
 			handleBottom: handle.bottom,
-			windowBottom: innerHeight,
+			statusbarTop: document.querySelector('.statusbar').getBoundingClientRect().top,
 		};
 	});
 	assert.ok(Math.abs(geometry.headerEdge - geometry.mainEdge) < 0.5, '标题栏与工作区内容起点应对齐');
@@ -60,7 +60,7 @@ async function checkSidebarAlignment() {
 	assert.equal(geometry.leftBottomBorder, '0px');
 	assert.equal(geometry.branding, false);
 	assert.equal(geometry.handleTop, 0);
-	assert.equal(geometry.handleBottom, geometry.windowBottom);
+	assert.equal(geometry.handleBottom, geometry.statusbarTop);
 }
 
 try {
@@ -232,9 +232,12 @@ try {
 	await page.keyboard.press('End');
 	const detailsDivider = page.getByRole('separator', { name: '调整详情宽度', exact: true });
 	const detailsBounds = await detailsDivider.boundingBox();
+	const dividerColor = await detailsDivider.evaluate((node) => getComputedStyle(node).backgroundColor);
 	await page.mouse.move(detailsBounds.x, detailsBounds.y + 70);
+	assert.equal(await detailsDivider.evaluate((node) => getComputedStyle(node).backgroundColor), dividerColor, '详情分隔线悬停时不高亮');
 	await page.mouse.down();
 	await page.mouse.move(detailsBounds.x - 180, detailsBounds.y + 70, { steps: 6 });
+	assert.equal(await detailsDivider.evaluate((node) => getComputedStyle(node).backgroundColor), dividerColor, '详情分隔线拖动时不高亮');
 	await page.mouse.up();
 	const controlsFit = await page.evaluate(() => {
 		const header = document.querySelector('.titlebar').getBoundingClientRect();

@@ -189,6 +189,7 @@ kbd {
 .app-shell {
 	/* Resolve the divider color before navigation overrides the surface palette. */
 	--pane-divider-color: var(--border);
+	--statusbar-height: 25px;
 	position: relative;
 	height: 100vh;
 	display: flex;
@@ -506,9 +507,6 @@ kbd {
 	position: absolute;
 	inset: 0 -3px;
 }
-.resizer:hover {
-	background: var(--accent);
-}
 .sidebar-divider {
 	width: var(--pane-divider-width);
 	background: var(--pane-divider-color);
@@ -517,7 +515,7 @@ kbd {
 .sidebar-resizer {
 	position: absolute;
 	top: 0;
-	bottom: 0;
+	bottom: var(--statusbar-height);
 	left: calc(var(--sidebar-width) - 3px);
 	width: calc(var(--pane-divider-width) + 6px);
 	z-index: 10;
@@ -528,15 +526,14 @@ kbd {
 .sidebar-resizer::before {
 	content: '';
 	position: absolute;
-	top: 0;
-	bottom: 0;
-	left: 3px;
-	width: var(--pane-divider-width);
+	top: calc(50% - 12px);
+	left: 2px;
+	width: 3px;
+	height: 24px;
+	border-radius: 2px;
 }
-.sidebar-resizer:hover::before,
-.sidebar-resizer:active::before,
 .sidebar-resizer:focus-visible::before {
-	background: var(--accent);
+	background: var(--muted);
 }
 .sidebar-resizer:focus-visible {
 	outline: none;
@@ -994,9 +991,6 @@ kbd {
 	position: absolute;
 	inset: -3px 0;
 }
-.horizontal-resizer:hover {
-	background: var(--accent);
-}
 .diff-view {
 	min-height: 110px;
 	flex: 1;
@@ -1379,8 +1373,8 @@ kbd {
 	background: var(--accent-soft);
 }
 .statusbar {
-	height: 25px;
-	min-height: 25px;
+	height: var(--statusbar-height);
+	min-height: var(--statusbar-height);
 	border-top: 1px solid var(--border);
 	background: var(--sidebar);
 	display: flex;
