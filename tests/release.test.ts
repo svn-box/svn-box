@@ -2,10 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { createRequire } from 'node:module';
 import { archiveNames, fileChecksum, previewMode, readReleaseMetadata, RELEASE_REPOSITORY, verifyReleaseFiles, type ReleaseMetadata } from '../scripts/release-metadata.ts';
 import { ensureReleaseAbsent, findRelease, readReleaseTarget, type RepositoryRelease } from '../scripts/github-release-api.ts';
 import { publishRelease } from '../scripts/github-release.ts';
-import { buildEnvironment, releaseCommand, requireSigningEnvironment } from '../scripts/release-mac.ts';
+import { buildEnvironment, builderIdentity, releaseCommand, requireSigningEnvironment } from '../scripts/release-mac.ts';
 import { readGitHubJson } from '../scripts/github-api.ts';
 
 vi.mock('../scripts/github-api.ts', () => ({ readGitHubJson: vi.fn() }));
@@ -69,6 +70,26 @@ async function draft(metadata: ReleaseMetadata, files: string[]): Promise<Reposi
 }
 
 describe('0.1.0 release invariants', () => {
+	it('passes an identity qualifier accepted by electron-builder and retains the exact signing team', async () => {
+		const signing = createRequire(import.meta.url)('app-builder-lib/out/codeSign/macCodeSign.js') as {
+			findIdentityRawResult: Promise<string[]> | null;
+			findIdentity: (type: string, qualifier: string) => Promise<{ name: string } | null>;
+		};
+		const previous = signing.findIdentityRawResult;
+		const identity = 'Developer ID Application: Example Developer (DUMMY00000)';
+		signing.findIdentityRawResult = Promise.resolve([
+			`0123456789012345678901234567890123456789 "Developer ID Application: Example Developer (OTHER00000)"`,
+			`1234567890123456789012345678901234567890 "${identity}"`,
+		]);
+		try {
+			const selected = await signing.findIdentity('Developer ID Application', builderIdentity(identity)!);
+			expect(selected?.name).toBe(identity);
+			expect(builderIdentity(null)).toBeNull();
+		} finally {
+			signing.findIdentityRawResult = previous;
+		}
+	});
+
 	it('checks the source version, lockfile, tag and real nonempty notes together', async () => {
 		const { root, metadata } = await fixture();
 		await expect(readReleaseMetadata(root, 'v0.2.0')).rejects.toThrow('does not match');

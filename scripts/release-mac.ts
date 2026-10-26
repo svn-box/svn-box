@@ -31,6 +31,11 @@ export function requireSigningEnvironment(env: NodeJS.ProcessEnv): { teamId: str
 	return { teamId, keychain: env.CSC_KEYCHAIN! };
 }
 
+export function builderIdentity(identity: string | null): string | null {
+	// electron-builder selects the certificate type itself; codesign still needs the full identity.
+	return identity?.replace(/^Developer ID Application: /, '') ?? null;
+}
+
 export async function releaseCommand(tool: string, arguments_: string[], env = process.env): Promise<{ stdout: string; stderr: string }> {
 	try {
 		return await execute(tool, arguments_, { env, maxBuffer: 32 * 1024 * 1024, timeout: 45 * 60 * 1000 });
@@ -179,7 +184,7 @@ async function main(): Promise<void> {
 				directories: { ...definition.build.directories, output: join(stage, 'app') },
 				mac: {
 					...definition.build.mac,
-					identity,
+					identity: builderIdentity(identity),
 					notarize: false,
 					preAutoEntitlements: false,
 					hardenedRuntime: true,
