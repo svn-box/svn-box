@@ -174,7 +174,16 @@ setTimeout(() => {
 	assert.ok((await page.locator('.remote-entry').count()) < 100, 'Large remote directories must remain virtualized');
 	await page.getByRole('tree').press('End');
 	await node('file-599.txt').waitFor();
-	assert.equal(await node('mm_client').getAttribute('aria-selected'), 'true');
+	// The final folder depends on the system's collation, so assert the tree position rather than a filename.
+	await page.waitForFunction(() => {
+		const tree = document.querySelector('.remote-tree [role="tree"]');
+		const selected = tree?.querySelector('[role="treeitem"][aria-selected="true"]');
+		return (
+			selected?.getAttribute('aria-level') === '3' &&
+			selected.getAttribute('aria-posinset') === selected.getAttribute('aria-setsize') &&
+			tree.getAttribute('aria-activedescendant') === selected.id
+		);
+	});
 	await node('file-599.txt').click();
 	await page.getByRole('tree').press('ArrowLeft');
 	await node('many').waitFor();
