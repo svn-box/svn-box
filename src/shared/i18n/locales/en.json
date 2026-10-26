@@ -778,5 +778,14 @@
 			"label": "Orange",
 			"description": "Charcoal · Vivid orange"
 		}
+	},
+	"remoteTree": {
+		"name": "Name",
+		"revision": "Last Revision",
+		"date": "Date",
+		"author": "Author",
+		"emptyDirectory": "Empty directory",
+		"retry": "Retry",
+		"loadingCount": "Loading {{count}} directories…"
 	}
 }

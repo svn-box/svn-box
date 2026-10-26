@@ -744,5 +744,14 @@
 			"label": "橙色",
 			"description": "炭灰 · 活力橙"
 		}
+	},
+	"remoteTree": {
+		"name": "名称",
+		"revision": "最后版本",
+		"date": "日期",
+		"author": "作者",
+		"emptyDirectory": "空目录",
+		"retry": "重试",
+		"loadingCount": "正在读取 {{count}} 个目录…"
 	}
 }

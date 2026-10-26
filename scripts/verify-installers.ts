@@ -54,6 +54,7 @@ try {
 		'scripts/e2e.mjs',
 		'scripts/e2e-themes.mjs',
 		'scripts/e2e-files.mjs',
+		'scripts/e2e-remote-tree.mjs',
 		'scripts/e2e-auth.mjs',
 		'scripts/e2e-reliability.mjs',
 		'scripts/e2e-app-updates.mjs',

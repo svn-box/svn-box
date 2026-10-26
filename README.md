@@ -9,7 +9,7 @@
     <a href="#screenshots">Screenshots</a> ·
     <a href="https://github.com/svn-box/svn-box/issues">Report an issue</a>
   </p>
-  <p><sub>v0.1.4 · macOS 13+ · Apple Silicon (arm64)</sub></p>
+  <p><sub>v0.1.5 · macOS 13+ · Apple Silicon (arm64)</sub></p>
 </div>
 
 svnbox (仓盒) brings your Subversion projects into one desktop workspace. Switch between working copies, review changes, commit selected paths, and explore history without losing your place.
@@ -19,7 +19,7 @@ The app interface supports **English and Simplified Chinese**, with instant swit
 ## Features
 
 - **Multiple working copies** — group, search, favorite, and reorder projects. Each working copy keeps its own file selection, filters, expanded folders, history context, and commit draft.
-- **Repository bookmarks** — organize remote URLs, browse directories, and check out branches into separate local working copies.
+- **Repository bookmarks** — organize remote URLs, expand folders in a compact tree with per-folder loading and cancellation, and check out selected directories into separate local working copies.
 - **Change review** — browse a compact file tree, filter SVN states, and compare text and property changes with unified or side-by-side diffs.
 - **Selective commits** — choose paths, review the actual commit scope, reuse recent messages, and recover drafts after restarting the app.
 - **History** — explore a collapsible timeline, load earlier revisions, inspect changed paths, and view differences within each commit.

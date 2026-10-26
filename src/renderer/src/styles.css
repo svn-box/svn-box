@@ -1747,33 +1747,137 @@ kbd {
 	border-top: 0;
 	border-radius: 0 0 6px 6px;
 }
-.remote-entry {
-	display: flex;
-	align-items: center;
-	gap: 9px;
-	width: 100%;
-	height: 36px;
-	padding: 0 13px;
-	text-align: left;
+.remote-tree {
+	min-height: 210px;
+	overflow: hidden;
+	background: var(--bg);
+}
+.remote-tree-header {
+	flex-shrink: 0;
+	height: 26px;
+	overflow: hidden;
+	border-bottom: 1px solid var(--border);
+	background: var(--canvas);
+	color: var(--muted);
 	font-size: 11px;
 }
-.remote-entry:hover {
-	background: var(--selected);
+.remote-columns {
+	display: grid;
+	grid-template-columns: minmax(220px, 1fr) 82px 162px 100px;
+	align-items: center;
+	gap: 12px;
+	padding: 0 12px;
+	height: 26px;
+}
+.remote-tree-header .remote-columns > span:first-child {
+	padding-left: 24px;
+}
+.remote-tree-header .remote-columns > span:nth-child(2),
+.remote-revision {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+.remote-entry {
+	width: 100%;
+	text-align: left;
+	font-size: 12px;
+	user-select: none;
 }
 .remote-entry > span {
-	flex: 1;
+	color: var(--muted);
+	font-size: 11px;
 }
-.remote-entry > svg {
+.remote-tree [data-parity='odd'] > .remote-entry:not(.selected) {
+	background: var(--surface);
+}
+.remote-tree .remote-entry:hover {
+	background: var(--hover);
+}
+.remote-tree .remote-entry.selected {
+	background: var(--selected);
+}
+.remote-tree [role='tree']:focus-visible {
+	outline: none;
+}
+.remote-tree [role='tree']:focus-visible:not(:has(.selected)) {
+	box-shadow: inset 0 0 0 2px var(--accent);
+}
+.remote-tree [role='tree']:focus-visible .remote-entry.selected {
+	box-shadow: inset 0 0 0 1px var(--accent);
+}
+.remote-tree-name {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	height: 26px;
+}
+.remote-tree-name > .truncate {
+	min-width: 0;
+}
+.remote-tree-name > svg {
+	flex-shrink: 0;
+}
+.remote-tree-name .spin {
+	margin-left: auto;
+	color: var(--muted);
+}
+.remote-root-icon {
 	color: var(--accent);
 }
-.remote-entry > small {
+.remote-entry[aria-level='1'] .truncate {
+	font-weight: 600;
+}
+.remote-head {
+	margin-left: auto;
+	padding: 1px 5px;
+	border-radius: 4px;
+	font: 10px var(--font-mono);
 	color: var(--muted);
-	font-size: 10px;
-	width: 80px;
+	background: var(--canvas);
 }
-.remote-entry:disabled {
-	opacity: 0.6;
+.remote-row-stop {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 20px;
+	flex-shrink: 0;
+	border-radius: 3px;
+	color: var(--muted);
 }
+.remote-row-stop:hover {
+	background: var(--canvas);
+	color: var(--text);
+}
+.remote-tree-status {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 26px;
+	padding-right: 12px;
+	font-size: 11px;
+	color: var(--muted);
+}
+.remote-tree-status.error-text {
+	color: var(--danger);
+}
+.remote-tree-status > svg {
+	flex-shrink: 0;
+}
+.remote-tree-status > button {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+	color: var(--accent);
+	padding: 2px 4px;
+	border-radius: 3px;
+}
+.remote-tree-status > button:hover {
+	background: var(--hover);
+}
+
 .checkout-fields {
 	margin-top: 20px;
 }
@@ -2767,7 +2871,7 @@ kbd {
 }
 .remote-surface .remote-list {
 	flex: 1;
-	min-height: 170px;
+	min-height: 210px;
 }
 .remote-surface .checkout-fields {
 	margin-top: 19px;

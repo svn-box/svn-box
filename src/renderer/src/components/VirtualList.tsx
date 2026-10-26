@@ -1,4 +1,4 @@
-import { useRef, useEffect, type ReactNode } from 'react';
+import { useRef, useEffect, type ReactNode, type UIEventHandler } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ScrollArea } from './ui/scroll-area';
 export function VirtualList<T>({
@@ -8,6 +8,10 @@ export function VirtualList<T>({
 	label,
 	activeIndex,
 	minWidth,
+	role = 'list',
+	tabIndex,
+	activeDescendant,
+	onScroll,
 }: {
 	items: T[];
 	height?: number;
@@ -15,6 +19,10 @@ export function VirtualList<T>({
 	label: string;
 	activeIndex?: number;
 	minWidth?: number;
+	role?: 'list' | 'tree';
+	tabIndex?: number;
+	activeDescendant?: string;
+	onScroll?: UIEventHandler<HTMLDivElement>;
 }) {
 	const parent = useRef<HTMLDivElement>(null);
 	const virtual = useVirtualizer({ count: items.length, getScrollElement: () => parent.current, estimateSize: () => height, overscan: 12 });
@@ -28,10 +36,15 @@ export function VirtualList<T>({
 		}
 	}, [activeIndex, items.length, height]);
 	return (
-		<ScrollArea ref={parent} className="virtual-list" role="list" aria-label={label}>
+		<ScrollArea ref={parent} className="virtual-list" role={role} aria-label={label} tabIndex={tabIndex} aria-activedescendant={activeDescendant} onScroll={onScroll}>
 			<div style={{ height: virtual.getTotalSize(), position: 'relative', minWidth }}>
 				{virtual.getVirtualItems().map((row) => (
-					<div key={row.key} role="listitem" data-parity={row.index % 2 ? 'odd' : 'even'} style={{ position: 'absolute', top: row.start, height, width: '100%' }}>
+					<div
+						key={row.key}
+						role={role === 'tree' ? 'presentation' : 'listitem'}
+						data-parity={row.index % 2 ? 'odd' : 'even'}
+						style={{ position: 'absolute', top: row.start, height, width: '100%' }}
+					>
 						{render(items[row.index], row.index)}
 					</div>
 				))}

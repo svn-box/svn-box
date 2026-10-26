@@ -666,9 +666,13 @@ select {
 }
 
 .commit-file-list,
-.review-paths,
-.remote-list {
+.review-paths {
 	border-radius: 9px;
+	background: var(--bg);
+}
+
+.remote-list {
+	border-radius: 0 0 9px 9px;
 	background: var(--bg);
 }
 

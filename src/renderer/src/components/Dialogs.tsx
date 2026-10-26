@@ -4,12 +4,12 @@ import { svnQueries } from '../queries/runtime';
 import { workspaceStore } from '../state/workspace';
 import type { WorkspaceCatalog } from '../state/workspace-store';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronRight, Download, Folder, KeyRound, LoaderCircle, Plus, RefreshCw, Server, Square, Star } from 'lucide-react';
+import { ArrowLeft, Download, KeyRound, LoaderCircle, Plus, RefreshCw, Server, Square, Star } from 'lucide-react';
 import type { AppState, Review, RpcMap } from '../../../shared/types';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
+import { RemoteRepositoryTree, remoteName, type RemoteTreeHandle } from './RemoteRepositoryTree';
 import { VirtualList } from './VirtualList';
-import { FileIcon } from './FileIcon';
 import { api, errorText } from '../lib/api';
 import { notifyError } from '../lib/feedback';
 import { toast } from 'sonner';
@@ -91,6 +91,12 @@ export function RemoteDialog({
 	const [repositoryId, setRepositoryId] = useState(initial?.id ?? '');
 	const [url, setUrl] = useState(initialUrl ?? initial?.rootUrl ?? '');
 	const [loadedUrl, setLoadedUrl] = useState('');
+	const [selectedKind, setSelectedKind] = useState('dir');
+	const [treeUrl, setTreeUrl] = useState('');
+	const [loadedTreeUrl, setLoadedTreeUrl] = useState('');
+	const [treeVersion, setTreeVersion] = useState(0);
+	const [pendingChildren, setPendingChildren] = useState(0);
+	const remoteTree = useRef<RemoteTreeHandle>(null);
 	const [listOptions, setListOptions] = useState<ReturnType<typeof svnQueries.listOptions>>();
 	const listing = useQuery({ ...(listOptions ?? svnQueries.listOptions('')), enabled: false });
 	const entries = listing.data ?? [];
@@ -116,6 +122,7 @@ export function RemoteDialog({
 	}, []);
 
 	function stopConnection(showMessage = true) {
+		remoteTree.current?.cancel();
 		request.current++;
 		connection.current?.abort();
 		if (listingRequest.current) {
@@ -145,7 +152,14 @@ export function RemoteDialog({
 	}
 
 	async function browse(target: string, id = repositoryId, useExistingAuthentication = false) {
+		remoteTree.current?.cancel();
 		connection.current?.abort();
+		setTreeUrl(target);
+		setLoadedTreeUrl('');
+		setLoadedUrl('');
+		setTreeVersion((previous) => previous + 1);
+		setPendingChildren(0);
+		setUrl(target);
 		const controller = new AbortController();
 		connection.current = controller;
 		const version = ++request.current;
@@ -176,10 +190,8 @@ export function RemoteDialog({
 				controller.signal.removeEventListener('abort', abort);
 			}
 			if (version === request.current) {
-				setLoadedUrl(target);
-				onLocationChange?.(target);
-				setUrl(target);
-				setFolder(decodeURIComponent(target.split('/').filter(Boolean).at(-1) || 'working-copy'));
+				setLoadedTreeUrl(target);
+				selectRemote(target, 'dir');
 			}
 		} catch (error) {
 			if (version === request.current) {
@@ -195,6 +207,15 @@ export function RemoteDialog({
 				connection.current = undefined;
 				setBusy(false);
 			}
+		}
+	}
+
+	function selectRemote(target: string, kind: string) {
+		setLoadedUrl(target);
+		setSelectedKind(kind);
+		onLocationChange?.(target);
+		if (kind === 'dir') {
+			setFolder(remoteName(target) || 'working-copy');
 		}
 	}
 
@@ -275,7 +296,10 @@ export function RemoteDialog({
 	}
 
 	const Surface = embedded ? RemoteSurface : Modal;
-	const root = state.repositories.find((repo) => repo.id === repositoryId)?.rootUrl;
+	const repository = state.repositories.find((repo) => repo.id === repositoryId);
+	const root = repository?.rootUrl;
+	const connecting = busy || pendingChildren > 0;
+	const validDirectory = !!loadedUrl && selectedKind === 'dir' && loadedTreeUrl === treeUrl && url === treeUrl;
 	return (
 		<Surface title={t('dialogs.browseRepositoryAndCheckOut')} description={t('dialogs.browseRemoteDirectoriesAndCheckOutAnIndependent')} wide onClose={close}>
 			<div className="remote-top">
@@ -295,6 +319,7 @@ export function RemoteDialog({
 							onRepositoryChange(id || undefined);
 							return;
 						}
+						stopConnection(false);
 						setRepositoryId(id);
 						const repo = state.repositories.find((repo) => repo.id === id);
 						if (repo) {
@@ -303,6 +328,8 @@ export function RemoteDialog({
 							setUrl('');
 							setListOptions(undefined);
 							setLoadedUrl('');
+							setTreeUrl('');
+							setLoadedTreeUrl('');
 						}
 					}}
 				/>
@@ -312,7 +339,7 @@ export function RemoteDialog({
 					aria-label={t('detailsPanel.repositoryUrl')}
 					value={url}
 					onChange={(event) => {
-						if (connection.current) {
+						if (connection.current || pendingChildren) {
 							stopConnection(false);
 						}
 						setUrl(event.target.value);
@@ -328,15 +355,15 @@ export function RemoteDialog({
 					variant="outline"
 					disabled={!url}
 					onClick={() => {
-						if (busy) {
+						if (connecting) {
 							stopConnection();
 						} else {
 							void browse(url);
 						}
 					}}
 				>
-					{busy ? <Square /> : <RefreshCw />}
-					{busy ? (activeAction === 'checkout' ? t('dialogs.cancelCheckout') : t('dialogs.stopConnecting')) : t('dialogs.browse')}
+					{connecting ? <Square /> : <RefreshCw />}
+					{connecting ? (activeAction === 'checkout' ? t('dialogs.cancelCheckout') : t('dialogs.stopConnecting')) : t('dialogs.browse')}
 				</Button>
 				<Button
 					variant="ghost"
@@ -363,28 +390,25 @@ export function RemoteDialog({
 					variant="ghost"
 					size="icon"
 					aria-label={t('dialogs.parentDirectory')}
-					disabled={!loadedUrl || loadedUrl === root || busy}
+					disabled={!loadedTreeUrl || treeUrl.replace(/\/$/, '') === root?.replace(/\/$/, '') || busy || url !== treeUrl}
 					onClick={() => {
-						const target = new URL(loadedUrl);
+						const target = new URL(treeUrl);
 						target.pathname = target.pathname.replace(/\/$/, '').split('/').slice(0, -1).join('/') || '/';
 						void browse(target.href);
 					}}
 				>
 					<ArrowLeft />
 				</Button>
-				<span className="truncate">{loadedUrl || t('dialogs.notConnectedToARepository')}</span>
-				<span className="muted">
-					{t('dialogs.items', {
-						count: entries.length,
-					})}
+				<span className="truncate" title={loadedUrl}>
+					{loadedUrl || t('dialogs.notConnectedToARepository')}
 				</span>
 				<Button
 					variant="ghost"
 					size="sm"
-					disabled={!loadedUrl || !repositoryId || busy}
+					disabled={!validDirectory || !repositoryId || busy}
 					title={t('dialogs.saveThisRemotePathUnderItsRepositoryIn')}
 					onClick={() => {
-						const name = decodeURIComponent(loadedUrl.replace(/\/$/, '').split('/').at(-1) || t('svn.repositoryRoot'));
+						const name = remoteName(loadedUrl) || t('svn.repositoryRoot');
 						void api
 							.call('bookmark', { repositoryId, url: loadedUrl, name })
 							.then((next) => {
@@ -398,59 +422,22 @@ export function RemoteDialog({
 					{t('dialogs.savePath')}
 				</Button>
 			</div>
-			<div className="remote-list">
-				{busy ? (
-					<div className="empty">
-						<LoaderCircle className="spin" />
-						{activeAction === 'checkout' ? t('dialogs.preparingCheckout') : t('dialogs.connectingToRepository')}
-						<span className="hint">{t('dialogs.useTheButtonAboveToStopOrEnter')}</span>
-					</div>
-				) : stopped ? (
-					<div className="empty">
-						<Square size={24} />
-						<strong>{t('common.connectionStopped')}</strong>
-						<span>{t('dialogs.changeTheUrlOrCredentialsAndReconnect')}</span>
-						<Button variant="outline" size="sm" onClick={() => void browse(url)}>
-							{t('dialogs.reconnect')}
-						</Button>
-					</div>
-				) : error ? (
-					<div className="empty error-text">
-						<Server size={24} />
-						<strong>{t('dialogs.unableToConnectToRepository')}</strong>
-						<span>{error.split('\n')[0]}</span>
-						<Button variant="outline" size="sm" onClick={() => void browse(url)}>
-							{t('dialogs.reconnect')}
-						</Button>
-					</div>
-				) : !entries.length ? (
-					<div className="empty">
-						<Folder size={28} />
-						{t('dialogs.thisDirectoryIsEmptyOrHasNotBeen')}
-					</div>
-				) : (
-					<VirtualList
-						items={entries}
-						label={t('dialogs.remoteDirectory')}
-						render={(entry) => (
-							<button
-								className="remote-entry"
-								disabled={entry.kind !== 'dir'}
-								onClick={() => void browse(`${loadedUrl.replace(/\/$/, '')}/${encodeURIComponent(entry.name)}`)}
-							>
-								<FileIcon path={entry.name} kind={entry.kind} />
-								<span>
-									{entry.name}
-									{entry.kind === 'dir' ? '/' : ''}
-								</span>
-								<small>r{entry.revision}</small>
-								<small>{entry.author}</small>
-								{entry.kind === 'dir' && <ChevronRight size={13} />}
-							</button>
-						)}
-					/>
-				)}
-			</div>
+			<RemoteRepositoryTree
+				key={treeVersion}
+				ref={remoteTree}
+				rootUrl={treeUrl}
+				rootName={remoteName(treeUrl) || repository?.name || t('svn.repositoryRoot')}
+				entries={entries}
+				rootState={busy && activeAction === 'browse' ? 'loading' : error ? 'error' : loadedTreeUrl ? 'loaded' : stopped ? 'cancelled' : 'idle'}
+				rootError={error}
+				repositoryId={repositoryId}
+				selectedUrl={loadedUrl}
+				onSelect={selectRemote}
+				onPendingChange={setPendingChildren}
+				onRetry={() => void browse(url)}
+				onCancel={() => stopConnection()}
+			/>
+
 			<div className="checkout-fields">
 				<label>
 					{t('dialogs.checkOutToParentFolder')}
@@ -508,9 +495,9 @@ export function RemoteDialog({
 				<Button variant="outline" onClick={close}>
 					{t('common.cancel')}
 				</Button>
-				<Button disabled={!loadedUrl || !parent || !folder || busy || url !== loadedUrl} onClick={() => void checkout()}>
-					<Download />
-					{t('dialogs.checkOutThisDirectory')}
+				<Button disabled={!validDirectory || !parent || !folder || busy} onClick={() => void checkout()}>
+					{busy && activeAction === 'checkout' ? <LoaderCircle className="spin" /> : <Download />}
+					{busy && activeAction === 'checkout' ? t('dialogs.preparingCheckout') : t('dialogs.checkOutThisDirectory')}
 				</Button>
 			</div>
 		</Surface>

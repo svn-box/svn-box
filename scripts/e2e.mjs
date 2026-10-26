@@ -199,7 +199,7 @@ try {
 	await page.getByRole('button', { name: `浏览仓库 ${repo.name}`, exact: true }).click();
 	await page.locator('.remote-surface').waitFor();
 	assert.equal(await page.getByRole('dialog').count(), 0);
-	await page.getByRole('button', { name: /trunk\// }).click();
+	await page.getByRole('treeitem', { name: 'trunk', exact: true }).click();
 	await page.getByRole('button', { name: '保存路径', exact: true }).click();
 	await page.waitForFunction(async () => (await window.svnbox.call('state', undefined)).bookmarks.length === 1);
 	assert.equal((await call(page, 'state')).bookmarks[0].url, `${url}/trunk`);
