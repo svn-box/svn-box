@@ -6,6 +6,7 @@ import { HistoryComparison } from './HistoryComparison';
 import { groupHistory, historyRelativePath, type HistoryDay } from '../lib/history';
 import { Button } from './ui/button';
 import { FileIcon } from './FileIcon';
+import { ScrollArea } from './ui/scroll-area';
 
 type ChangedPath = LogEntry['paths'][number];
 type TimelineRow =
@@ -193,7 +194,7 @@ export function HistoryTimeline({
 					</Button>
 				</div>
 			</div>
-			<div ref={viewport} className="history-timeline" role="region" aria-label="历史时间线，方向键浏览，左右折叠，回车查看" tabIndex={0} onKeyDown={navigate}>
+			<ScrollArea ref={viewport} className="history-timeline" role="region" aria-label="历史时间线，方向键浏览，左右折叠，回车查看" tabIndex={0} onKeyDown={navigate}>
 				<span className="sr-only" role="status">
 					{announcement}
 				</span>
@@ -297,7 +298,7 @@ export function HistoryTimeline({
 						);
 					})}
 				</div>
-			</div>
+			</ScrollArea>
 		</>
 	);
 }

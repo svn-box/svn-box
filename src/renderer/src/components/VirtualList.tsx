@@ -1,5 +1,6 @@
 import { useRef, useEffect, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { ScrollArea } from './ui/scroll-area';
 export function VirtualList<T>({
 	items,
 	height = 36,
@@ -27,7 +28,7 @@ export function VirtualList<T>({
 		}
 	}, [activeIndex, items.length, height]);
 	return (
-		<div ref={parent} className="virtual-list" role="list" aria-label={label}>
+		<ScrollArea ref={parent} className="virtual-list" role="list" aria-label={label}>
 			<div style={{ height: virtual.getTotalSize(), position: 'relative', minWidth }}>
 				{virtual.getVirtualItems().map((row) => (
 					<div key={row.key} role="listitem" data-parity={row.index % 2 ? 'odd' : 'even'} style={{ position: 'absolute', top: row.start, height, width: '100%' }}>
@@ -35,6 +36,6 @@ export function VirtualList<T>({
 					</div>
 				))}
 			</div>
-		</div>
+		</ScrollArea>
 	);
 }

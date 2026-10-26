@@ -73,7 +73,8 @@ try {
 	await writeFile(join(copy, 'README.md'), '# 仓盒\n紧凑文件视图\n');
 	instance = await electron.launch({
 		executablePath: process.env.SVNBOX_PACKAGED_APP || require('electron'),
-		args: process.env.SVNBOX_PACKAGED_APP ? [] : [resolve('out/main/index.js')],
+		// Override only this process's Cocoa preferences to cover CI's always-visible scrollbars.
+		args: [...(process.env.SVNBOX_PACKAGED_APP ? [] : [resolve('out/main/index.js')]), '-AppleShowScrollBars', 'Always'],
 		env: { ...process.env, SVNBOX_DATA_DIR: join(root, 'data') },
 	});
 	page = await instance.firstWindow();
@@ -124,7 +125,7 @@ try {
 	await page.waitForFunction(() => document.querySelectorAll('.file-row').length === 2);
 	assert.equal(await page.locator('.file-row[data-depth="0"]').count(), 2);
 	assert.equal(await page.locator('.file-entry .tree-disclosure').count(), 0);
-	const fileChrome = await listChrome('.table-head', '.file-pane > .virtual-list', '.file-row');
+	const fileChrome = await listChrome('.table-head', '.file-pane .virtual-list', '.file-row');
 	await page.screenshot({ path: resolve('test-results/list-files-short.png') });
 	await page.getByRole('tab', { name: '文件', exact: true }).focus();
 	await page.keyboard.press('ArrowRight');
@@ -148,6 +149,18 @@ try {
 	console.log(JSON.stringify({ longHistoryChrome }));
 	assert.equal(longHistoryChrome.overflow, true, '展开的历史应实际超过可视区');
 	assert.equal(longHistoryChrome.rightGap, 0, '长历史的日期栏铺满右侧，滚动条覆盖在内容上');
+	const historyThumb = page.locator('.history-timeline').locator('..').locator('.scroll-area-bar[data-orientation="vertical"] .scroll-area-thumb');
+	await historyThumb.waitFor();
+	const thumb = await historyThumb.boundingBox();
+	assert.ok(thumb && thumb.height > 0, '长历史提供可拖动的滚动条');
+	await page.mouse.move(thumb.x + thumb.width / 2, thumb.y + thumb.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(thumb.x + thumb.width / 2, thumb.y + thumb.height / 2 + 60, { steps: 8 });
+	await page.mouse.up();
+	await page.waitForFunction(() => document.querySelector('.history-timeline').scrollTop > 0);
+	await page.locator('.history-timeline').evaluate((viewport) => {
+		viewport.scrollTop = 0;
+	});
 	await page.getByRole('button', { name: '收起全部', exact: true }).click();
 	await page.locator('.history-commit').first().waitFor({ state: 'hidden' });
 	const historyChrome = await listChrome('.history-overview', '.history-timeline', '.history-day');
@@ -212,7 +225,7 @@ try {
 	await page.getByRole('button', { name: '展开 bulk', exact: true }).click();
 	await page.getByRole('button', { name: 'item-000.json', exact: true }).waitFor();
 	assert.ok((await list.getByRole('listitem').count()) < 100, '500 个文件应仅渲染可见窗口');
-	const longFileChrome = await listChrome('.table-head', '.file-pane > .virtual-list', '.file-row');
+	const longFileChrome = await listChrome('.table-head', '.file-pane .virtual-list', '.file-row');
 	assert.equal(longFileChrome.overflow, true, '500 个文件应实际超过可视区');
 	assert.equal(longFileChrome.gutter, 0, '长文件列表的滚动条也不占内容宽度');
 	await list.evaluate((element) => {

@@ -238,14 +238,6 @@ body {
 	padding-left: 12px;
 }
 
-/* Pixel-sized WebKit scrollbars disable macOS overlay scrolling. */
-.file-pane > .virtual-list,
-.commit-file-list > .virtual-list,
-.history-timeline {
-	scrollbar-width: thin;
-	scrollbar-color: var(--muted) transparent;
-}
-
 .file-table-header .table-head,
 .commit-file-header {
 	background: var(--canvas);
@@ -263,7 +255,7 @@ body {
 	font-size: 11px;
 }
 
-.virtual-list > div > [role='listitem'][data-parity='odd'] > .file-row:not(.selected) {
+.virtual-list [role='listitem'][data-parity='odd'] > .file-row:not(.selected) {
 	background: var(--canvas);
 }
 
