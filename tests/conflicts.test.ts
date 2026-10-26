@@ -14,6 +14,7 @@ afterAll(async () => {
 	}
 });
 
+// 真实 SVN 子进程与磁盘写入在 CI 上可能超过默认的 5 秒。
 it('识别真实属性冲突及冲突详情，接受人工修正后的工作属性', async () => {
 	await svn('propset', 'svnbox:tag', 'base', `${f.a}/README.md@`);
 	await svn('commit', `${f.a}/README.md@`, '-m', '属性基线');
@@ -29,7 +30,7 @@ it('识别真实属性冲突及冲突详情，接受人工修正后的工作属�
 	const resolve = await f.service.review({ wcId: f.second.id, action: 'resolve', paths: ['README.md'] });
 	expect((await finish(f.service, await f.service.execute(resolve.id))).state).toBe('success');
 	expect((await f.service.status(f.second.id)).files.find((file) => file.path === 'README.md')?.props).toBe('modified');
-});
+}, 30000);
 
 it('本地修改与上游删除产生树冲突，拒绝直接提交并保留详情', async () => {
 	await writeFile(join(f.b, 'README.md'), '本地修改，不能静默丢失\n');
@@ -41,4 +42,4 @@ it('本地修改与上游删除产生树冲突，拒绝直接提交并保留详�
 	expect(file?.treeConflicted).toBe(true);
 	expect((await f.service.info(f.second.id, 'README.md')).conflicts.length).toBeGreaterThan(0);
 	await expect(f.service.review({ wcId: f.second.id, action: 'commit', paths: ['README.md'], message: '不能提交冲突' })).rejects.toThrow('冲突');
-});
+}, 30000);
