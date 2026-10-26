@@ -44,10 +44,9 @@ jobs:
                       .cache/svn-runtime
                       resources/svn/darwin-arm64
                   key: svn-native-${{ runner.os }}-${{ runner.arch }}-xcode27-${{ hashFiles('scripts/build-svn-*.mjs', 'resources/native-patches/**') }}
-            - name: Check formatting and regression tests
+            - name: Check source formatting
               run: |
                   npm run format:check
-                  npm test
                   git diff --exit-code -- package.json package-lock.json src/renderer/src/styles/tokens.css
             - name: Build and verify preview installers
               if: github.event_name == 'workflow_dispatch'

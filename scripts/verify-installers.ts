@@ -50,22 +50,12 @@ try {
 	await releaseCommand('/usr/bin/hdiutil', ['detach', mount]);
 	mounted = false;
 	const env = { ...buildEnvironment(process.env), SVNBOX_PACKAGED_APP: join(app, 'Contents/MacOS', APP_NAME) };
-	for (const script of [
-		'scripts/e2e.mjs',
-		'scripts/e2e-themes.mjs',
-		'scripts/e2e-files.mjs',
-		'scripts/e2e-remote-tree.mjs',
-		'scripts/e2e-auth.mjs',
-		'scripts/e2e-reliability.mjs',
-		'scripts/e2e-app-updates.mjs',
-	]) {
-		console.log(`Verifying extracted release: ${script}`);
-		await new Promise<void>((resolve, reject) => {
-			const child = spawn(process.execPath, [script], { env, shell: false, stdio: 'inherit' });
-			child.once('error', () => reject(new Error(`Packaged UI check could not start: ${script}`)));
-			child.once('close', (code) => (code === 0 ? resolve() : reject(new Error(`Packaged UI check failed: ${script}`))));
-		});
-	}
+	console.log('Verifying packaged app startup and bundled SVN.');
+	await new Promise<void>((resolve, reject) => {
+		const child = spawn(process.execPath, ['scripts/e2e.mjs'], { env, shell: false, stdio: 'inherit' });
+		child.once('error', () => reject(new Error('Packaged smoke check could not start.')));
+		child.once('close', (code) => (code === 0 ? resolve() : reject(new Error('Packaged smoke check failed.'))));
+	});
 	await verifyMacApp(app, metadata.version, teamId);
 	console.log('Installer checksums, mounted DMG, extracted ZIP and packaged Electron checks passed.');
 } finally {

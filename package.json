@@ -25,7 +25,8 @@
 		"release:check": "node scripts/github-release.ts check",
 		"release:mac": "node scripts/release-mac.ts",
 		"release:mac:preview": "node scripts/release-mac.ts --unsigned && node scripts/verify-installers.ts --unsigned",
-		"release:verify": "node scripts/verify-installers.ts"
+		"release:verify": "node scripts/verify-installers.ts",
+		"test:e2e:extended": "npm run svn:build && npm run build && node scripts/e2e-auth.mjs && node scripts/e2e-reliability.mjs && node scripts/e2e-app-updates.mjs"
 	},
 	"dependencies": {
 		"@radix-ui/react-context-menu": "2.4.1",
