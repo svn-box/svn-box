@@ -2508,8 +2508,13 @@ kbd {
 	min-height: 0;
 }
 .work-content.with-preview .file-pane {
-	max-height: 55%;
+	flex: 1;
+	max-height: none;
 	min-height: 140px;
+}
+
+.work-content.with-preview > .diff-view {
+	flex: 0 1 var(--diff-height);
 }
 
 .changed-toggle {

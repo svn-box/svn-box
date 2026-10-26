@@ -14,14 +14,12 @@ export type FileContext = { x: number; y: number; path: string };
 
 export function FilePane({
 	wc,
-	height,
 	fileActions,
 	setContext,
 	compareFile,
 	onTogglePreview,
 }: {
 	wc: WorkingCopy;
-	height?: number;
 	fileActions: (path: string) => ReactNode;
 	setContext: (context: FileContext) => void;
 	compareFile: (path: string) => void;
@@ -174,7 +172,6 @@ export function FilePane({
 		<div
 			ref={pane}
 			className="file-pane"
-			style={height ? { height } : undefined}
 			tabIndex={0}
 			aria-label={t('filePane.fileAndHistoryListArrowKeysToBrowse')}
 			onKeyDown={navigateList}

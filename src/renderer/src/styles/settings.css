@@ -47,6 +47,7 @@
 	font-size: 13px;
 	font-weight: 400;
 	border-radius: 9px;
+	color: var(--muted);
 }
 
 .settings-navigation .button svg {
@@ -56,6 +57,7 @@
 
 .settings-navigation .button[aria-selected='true'] {
 	background: var(--hover);
+	color: var(--accent);
 	font-weight: 600;
 }
 
@@ -65,7 +67,7 @@
 	overflow: auto;
 	overscroll-behavior: contain;
 	scrollbar-gutter: stable;
-	padding: 14px 28px 24px 28px;
+	padding: 0 28px 24px;
 }
 
 .settings-row {
@@ -89,7 +91,8 @@
 	margin: 0;
 	font-size: 13px;
 	line-height: 20px;
-	font-weight: 500;
+	font-weight: 600;
+	color: var(--text);
 }
 
 .settings-row-copy p,
@@ -115,6 +118,10 @@
 
 .settings-row:has(.settings-row-copy):not(.settings-tool) {
 	padding-block: 14px;
+}
+
+.settings-page > .settings-row:first-of-type {
+	padding-top: 0;
 }
 
 .settings-themes {
@@ -268,10 +275,6 @@
 	font-weight: 500;
 }
 
-.settings-tool:first-of-type {
-	padding-top: 8px;
-}
-
 .settings-tool:last-of-type label {
 	margin-top: 0;
 	font-size: 13px;
@@ -341,8 +344,14 @@
 	min-width: 68px;
 }
 
+.settings-app-update h3 {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0 10px;
+}
+
 .settings-app-version {
-	margin-left: 10px;
 	color: var(--muted);
 	font-size: 11px;
 	font-weight: 400;

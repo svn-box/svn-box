@@ -9,7 +9,7 @@
     <a href="#screenshots">Screenshots</a> ·
     <a href="https://github.com/svn-box/svn-box/issues">Report an issue</a>
   </p>
-  <p><sub>v0.1.5 · macOS 13+ · Apple Silicon (arm64)</sub></p>
+  <p><sub>v0.1.6 · macOS 13+ · Apple Silicon (arm64)</sub></p>
 </div>
 
 svnbox (仓盒) brings your Subversion projects into one desktop workspace. Switch between working copies, review changes, commit selected paths, and explore history without losing your place.

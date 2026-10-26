@@ -19,7 +19,7 @@ interface WorkspaceStoreState {
 	showDetails: boolean;
 	sidebarWidth: number;
 	detailsWidth: number;
-	listHeight: number;
+	diffHeight: number;
 	accept: (next: AppState, activate?: boolean) => void;
 	activate: (id: string) => void;
 	patchSession: (patch: Partial<WorkspaceSession>, wcId?: string) => void;
@@ -32,7 +32,7 @@ interface WorkspaceStoreState {
 	bindUpdateOperation: (wcId: string, operationId: string) => string | undefined;
 	finishUpdatePreparation: (wcId: string, toastId: string) => void;
 	setPanel: (panel: 'showOperations' | 'showDetails', value: boolean | ((previous: boolean) => boolean)) => void;
-	setSize: (pane: 'sidebarWidth' | 'detailsWidth' | 'listHeight', value: number | ((previous: number) => number)) => void;
+	setSize: (pane: 'sidebarWidth' | 'detailsWidth' | 'diffHeight', value: number | ((previous: number) => number)) => void;
 }
 export const blankSession = emptySession();
 
@@ -59,7 +59,7 @@ export function createWorkspaceStore(call: ClientCall, onError: (error: unknown)
 		showDetails: true,
 		sidebarWidth: 280,
 		detailsWidth: 236,
-		listHeight: 300,
+		diffHeight: 150,
 
 		accept(next, activate = false) {
 			const { sessions: incoming, activeId, ...catalog } = next;

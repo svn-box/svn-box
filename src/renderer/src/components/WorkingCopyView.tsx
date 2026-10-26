@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { CircleAlert, Code2 } from 'lucide-react';
 import { isChanged, type Action, type WorkingCopy } from '../../../shared/types';
 import { useDiff, useStatus } from '../queries/hooks';
@@ -36,7 +36,7 @@ export function WorkingCopyView({
 	const { t } = useTranslation();
 	const session = useSessionSlice(wc.id, ['view', 'currentPath']);
 	const showDetails = useWorkspaceStore((store) => store.showDetails);
-	const listHeight = useWorkspaceStore((store) => store.listHeight);
+	const diffHeight = useWorkspaceStore((store) => store.diffHeight);
 	const status = useStatus(wc.id);
 	const snapshot = status.data;
 	const currentError = status.error ? errorText(status.error) : '';
@@ -62,18 +62,11 @@ export function WorkingCopyView({
 				</div>
 			)}
 			<div className="content-columns">
-				<div className={`work-content ${showPreview ? 'with-preview' : 'without-preview'}`}>
+				<div className={`work-content ${showPreview ? 'with-preview' : 'without-preview'}`} style={{ '--diff-height': `${diffHeight}px` } as CSSProperties}>
 					{session.view === 'history' ? (
 						<HistoryPane wc={wc} compareFile={compareFile} />
 					) : (
-						<FilePane
-							wc={wc}
-							height={showPreview ? listHeight : undefined}
-							fileActions={fileActions}
-							setContext={setContext}
-							compareFile={compareFile}
-							onTogglePreview={() => setPreviewHidden((value) => !value)}
-						/>
+						<FilePane wc={wc} fileActions={fileActions} setContext={setContext} compareFile={compareFile} onTogglePreview={() => setPreviewHidden((value) => !value)} />
 					)}
 					{showPreview && (
 						<>
