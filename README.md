@@ -102,3 +102,9 @@ The search box filters records already loaded. Use the earlier-history action to
 ### Adjust the workspace
 
 Drag the panel dividers to resize the workspace or collapse the inspector. Open Settings with **⌘,** to choose an appearance or configure SVN and an external merge tool. Working-copy context and commit drafts are restored when you reopen svnbox.
+
+### Update the application
+
+Choose **仓盒 → 检查更新** or open **Settings → General → Application updates**. Checking does not download anything. Choose Download, then Restart and Install when ready. Running SVN operations must finish before installation, and commit drafts are saved before restarting.
+
+Updates come from this repository's stable GitHub Releases. Automatic installation requires a signed macOS build. Older versions without this update entry need one manual installation of a version that includes it.

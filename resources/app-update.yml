@@ -1,0 +1,6 @@
+{
+	"provider": "github",
+	"owner": "svn-box",
+	"repo": "svn-box",
+	"updaterCacheDirName": "svnbox-updater"
+}

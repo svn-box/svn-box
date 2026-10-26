@@ -1,4 +1,5 @@
 import type { Theme } from './themes';
+import type { AppUpdateAction, AppUpdateState } from './app-updates';
 export type { Theme } from './themes';
 export type View = 'changes' | 'files' | 'history';
 export type Filter = 'all' | 'modified' | 'added' | 'deleted' | 'unversioned' | 'ignored' | 'conflicted';
@@ -175,6 +176,7 @@ export interface Detection {
 	error?: string;
 }
 export interface RpcMap {
+	appUpdate: { input: { action: AppUpdateAction }; output: AppUpdateState };
 	state: { input: undefined; output: AppState };
 	detect: { input: { path?: string }; output: Detection };
 	settings: { input: Partial<AppState['settings']>; output: AppState };
@@ -230,6 +232,7 @@ export interface SvnboxApi {
 	call<K extends RpcName>(method: K, input: RpcMap[K]['input'], options?: RequestOptions): Promise<RpcMap[K]['output']>;
 	onOperation(callback: (operation: Operation) => void): () => void;
 	onNavigate(callback: (action: string) => void): () => void;
+	onAppUpdate(callback: (state: AppUpdateState) => void): () => void;
 }
 export const emptySession = (): WorkspaceSession => ({ draft: '', selected: [], filter: 'all', expanded: ['.'], currentPath: '', view: 'changes', historyTarget: '.' });
 

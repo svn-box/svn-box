@@ -9,13 +9,24 @@ import type { WorkspaceCatalog } from '../state/workspace-store';
 import { Button } from './ui/button';
 import { Combobox } from './ui/combobox';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
+import { AppUpdateSection } from './AppUpdateSection';
 
 const pages = [
 	{ id: 'general', label: '通用设置', icon: Settings },
 	{ id: 'tools', label: '工具', icon: Wrench },
 ] as const;
 
-export function SettingsDialog({ state, onState, onClose }: { state: WorkspaceCatalog; onState: (state: AppState) => void; onClose: () => void }) {
+export function SettingsDialog({
+	state,
+	onState,
+	onClose,
+	updateRequest = 0,
+}: {
+	state: WorkspaceCatalog;
+	onState: (state: AppState) => void;
+	onClose: () => void;
+	updateRequest?: number;
+}) {
 	const id = useId();
 	const [page, setPage] = useState<(typeof pages)[number]['id']>('general');
 	const [path, setPath] = useState(state.settings.svnPath);
@@ -28,6 +39,12 @@ export function SettingsDialog({ state, onState, onClose }: { state: WorkspaceCa
 	const themeLock = useRef(false);
 	const detectionRequest = useRef(0);
 	const dirty = path !== state.settings.svnPath || tool !== state.settings.mergeTool;
+
+	useEffect(() => {
+		if (updateRequest) {
+			setPage('general');
+		}
+	}, [updateRequest]);
 
 	useEffect(() => {
 		const request = ++detectionRequest.current;
@@ -191,6 +208,7 @@ export function SettingsDialog({ state, onState, onClose }: { state: WorkspaceCa
 										))}
 									</div>
 								</div>
+								<AppUpdateSection focusRequest={updateRequest} />
 							</>
 						) : (
 							<>

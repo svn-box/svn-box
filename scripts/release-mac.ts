@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { Arch, build, Platform, type Configuration } from 'electron-builder';
 import { z } from 'zod';
-import { APP_ID, APP_NAME, archiveNames, fileChecksum, previewMode, readReleaseMetadata, verifyReleaseFiles } from './release-metadata.ts';
+import { APP_ID, APP_NAME, archiveNames, fileChecksum, previewMode, readReleaseMetadata, verifyReleaseFiles, writeUpdateManifest, UPDATE_MANIFEST } from './release-metadata.ts';
+import { appUpdateRepository } from '../src/shared/app-updates.ts';
 
 const execute = promisify(execFile);
 export const signingVariables = ['APPLE_ID', 'APPLE_TEAM_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'CSC_KEYCHAIN'] as const;
@@ -85,6 +86,12 @@ export async function verifyMacApp(app: string, version: string, teamId?: string
 		throw new Error('Application icon is invalid.');
 	}
 	await readFile(join(app, 'Contents/Resources/Assets.car'));
+	const feed = JSON.parse(await readFile(join(app, 'Contents/Resources/app-update.yml'), 'utf8'));
+	for (const [key, value] of Object.entries(appUpdateRepository)) {
+		if (feed[key] !== value) {
+			throw new Error('The application update feed does not match the release repository.');
+		}
+	}
 	const runtime = join(app, 'Contents/Resources/svn');
 	const manifest = z
 		.object({ version: z.string(), arch: z.literal('arm64'), platform: z.literal('darwin') })
@@ -229,6 +236,8 @@ async function main(): Promise<void> {
 			checksums.push(`${await fileChecksum(path)}  ${name}`);
 			await copyFile(path, join(metadata.directory, name));
 		}
+		await writeUpdateManifest(metadata);
+		checksums.push(`${await fileChecksum(join(metadata.directory, UPDATE_MANIFEST))}  ${UPDATE_MANIFEST}`);
 		await writeFile(join(metadata.directory, 'SHA256SUMS'), checksums.join('\n') + '\n');
 		await verifyReleaseFiles(metadata);
 		console.log(`${unsigned ? 'Unsigned preview' : 'Signed and notarized'} installers are ready: ${metadata.directory}`);

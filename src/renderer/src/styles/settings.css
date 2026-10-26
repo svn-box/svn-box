@@ -341,6 +341,42 @@
 	min-width: 68px;
 }
 
+.settings-app-version {
+	margin-left: 10px;
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 400;
+}
+
+.settings-update-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+.settings-app-update .settings-row-copy p.error-text {
+	color: var(--danger);
+}
+
+.settings-app-update progress {
+	display: block;
+	width: 180px;
+	height: 5px;
+	margin-top: 10px;
+	appearance: none;
+}
+
+.settings-app-update progress::-webkit-progress-bar {
+	background: var(--border);
+	border-radius: 3px;
+}
+
+.settings-app-update progress::-webkit-progress-value {
+	background: var(--accent-strong);
+	border-radius: 3px;
+}
+
 @media (max-width: 760px) {
 	.settings-layout {
 		grid-template-columns: 152px minmax(0, 1fr);

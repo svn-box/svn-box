@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { lstat, readFile, readdir } from 'node:fs/promises';
+import { lstat, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
 
 export const RELEASE_REPOSITORY = 'svn-box/svn-box';
 export const APP_NAME = '仓盒';
 export const APP_ID = 'app.svnbox.desktop';
+export const UPDATE_MANIFEST = 'latest-mac.yml';
 
 export interface ReleaseMetadata {
 	version: string;
@@ -45,20 +46,29 @@ export function archiveNames(version: string): [string, string] {
 	return [`svnbox-${version}-arm64.dmg`, `svnbox-${version}-arm64.zip`];
 }
 
-export async function fileChecksum(path: string): Promise<string> {
-	const hash = createHash('sha256');
+export async function fileChecksum(path: string, algorithm: 'sha256' | 'sha512' = 'sha256'): Promise<string> {
+	const hash = createHash(algorithm);
 	for await (const bytes of createReadStream(path)) {
 		hash.update(bytes);
 	}
-	return hash.digest('hex');
+	return hash.digest(algorithm === 'sha512' ? 'base64' : 'hex');
+}
+
+export async function writeUpdateManifest(metadata: ReleaseMetadata): Promise<void> {
+	const name = archiveNames(metadata.version)[1];
+	const path = join(metadata.directory, name);
+	const sha512 = await fileChecksum(path, 'sha512');
+	const manifest = { version: metadata.version, files: [{ url: name, sha512, size: (await lstat(path)).size }], path: name, sha512, releaseDate: new Date().toISOString() };
+	// The updater accepts JSON as YAML; hashes refer to the final notarized ZIP.
+	await writeFile(join(metadata.directory, UPDATE_MANIFEST), JSON.stringify(manifest, null, 2) + '\n');
 }
 
 export async function verifyReleaseFiles(metadata: ReleaseMetadata): Promise<string[]> {
-	const archives = archiveNames(metadata.version);
+	const archives = [...archiveNames(metadata.version), UPDATE_MANIFEST];
 	const expected = [...archives, 'SHA256SUMS'].sort();
 	const names = (await readdir(metadata.directory)).sort();
 	if (names.join('\n') !== expected.join('\n')) {
-		throw new Error('Distribution directory must contain only this version’s DMG, ZIP and SHA256SUMS.');
+		throw new Error('Distribution directory must contain only this version’s DMG, ZIP, update manifest and SHA256SUMS.');
 	}
 	for (const name of names) {
 		const stat = await lstat(join(metadata.directory, name));
@@ -74,6 +84,19 @@ export async function verifyReleaseFiles(metadata: ReleaseMetadata): Promise<str
 	if (checksums.join('\n') !== actual.sort().join('\n')) {
 		throw new Error('Distribution SHA256 checksums do not match.');
 	}
+	const zipName = archiveNames(metadata.version)[1];
+	const zip = join(metadata.directory, zipName);
+	const sha512 = await fileChecksum(zip, 'sha512');
+	const manifest = z
+		.object({
+			version: z.literal(metadata.version),
+			files: z.tuple([z.object({ url: z.literal(zipName), sha512: z.literal(sha512), size: z.literal((await lstat(zip)).size) }).strict()]),
+			path: z.literal(zipName),
+			sha512: z.literal(sha512),
+			releaseDate: z.iso.datetime(),
+		})
+		.strict();
+	manifest.parse(JSON.parse(await readFile(join(metadata.directory, UPDATE_MANIFEST), 'utf8')));
 	return expected.map((name) => join(metadata.directory, name));
 }
 

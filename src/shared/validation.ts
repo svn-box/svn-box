@@ -10,6 +10,7 @@ const path = text.refine((s) => !/[\r\n]/.test(s), '路径不能包含换行');
 const wc = z.object({ wcId: id });
 const paths = z.array(path).max(2000);
 export const schemas = {
+	appUpdate: z.object({ action: z.enum(['status', 'check', 'download', 'install', 'release']) }).strict(),
 	state: z.undefined(),
 	detect: z.object({ path: path.optional() }),
 	settings: z.object({ svnPath: path.optional(), theme: z.enum(themeIds).optional(), mergeTool: path.optional() }).strict(),

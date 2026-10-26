@@ -59,6 +59,7 @@ export function App() {
 	const activeId = useWorkspaceStore((store) => store.activeId);
 	const operations = useOperationSummary();
 	const [modal, setModal] = useState<'settings' | 'remote' | 'commit' | 'group' | 'manage' | null>(null);
+	const [updateRequest, setUpdateRequest] = useState(0);
 	const [remoteId, setRemoteId] = useState<string>();
 	const [review, setReview] = useState<Review>();
 	const [reviewing, setReviewing] = useState(false);
@@ -287,6 +288,10 @@ export function App() {
 	navigateRef.current = (action) => {
 		if (action === 'settings') {
 			setModal('settings');
+		} else if (action === 'app-update') {
+			setUpdateRequest((request) => request + 1);
+			setModal('settings');
+			void api.call('appUpdate', { action: 'check' }).catch(showError);
 		} else if (action === 'add') {
 			void addWorkingCopy();
 		} else if (action === 'remote') {
@@ -669,7 +674,17 @@ export function App() {
 					</DropdownMenuContent>
 				</DropdownMenu>
 			)}
-			{modal === 'settings' && <SettingsDialog state={state} onState={acceptState} onClose={() => setModal(null)} />}
+			{modal === 'settings' && (
+				<SettingsDialog
+					state={state}
+					onState={acceptState}
+					updateRequest={updateRequest}
+					onClose={() => {
+						setModal(null);
+						setUpdateRequest(0);
+					}}
+				/>
+			)}
 			{modal === 'remote' && <RemoteDialog state={state} initialRepositoryId={remoteId} onState={acceptState} onClose={() => setModal(null)} />}
 			{modal === 'commit' && wc && (
 				<CommitPanel

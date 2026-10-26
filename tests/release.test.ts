@@ -3,7 +3,17 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createRequire } from 'node:module';
-import { archiveNames, fileChecksum, previewMode, readReleaseMetadata, RELEASE_REPOSITORY, verifyReleaseFiles, type ReleaseMetadata } from '../scripts/release-metadata.ts';
+import {
+	archiveNames,
+	fileChecksum,
+	previewMode,
+	readReleaseMetadata,
+	RELEASE_REPOSITORY,
+	verifyReleaseFiles,
+	writeUpdateManifest,
+	UPDATE_MANIFEST,
+	type ReleaseMetadata,
+} from '../scripts/release-metadata.ts';
 import { ensureReleaseAbsent, findRelease, readReleaseTarget, type RepositoryRelease } from '../scripts/github-release-api.ts';
 import { publishRelease } from '../scripts/github-release.ts';
 import { buildEnvironment, builderIdentity, releaseCommand, requireSigningEnvironment } from '../scripts/release-mac.ts';
@@ -37,6 +47,8 @@ async function fixture(): Promise<{ root: string; metadata: ReleaseMetadata; fil
 		await writeFile(path, `test archive ${name}`);
 		checksums.push(`${await fileChecksum(path)}  ${name}`);
 	}
+	await writeUpdateManifest(metadata);
+	checksums.push(`${await fileChecksum(join(metadata.directory, UPDATE_MANIFEST))}  ${UPDATE_MANIFEST}`);
 	await writeFile(join(metadata.directory, 'SHA256SUMS'), checksums.join('\n') + '\n');
 	return { root, metadata, files: await verifyReleaseFiles(metadata) };
 }
@@ -70,6 +82,41 @@ async function draft(metadata: ReleaseMetadata, files: string[]): Promise<Reposi
 }
 
 describe('0.1.0 release invariants', () => {
+	it('publishes update metadata the real updater can parse and resolve to the final ZIP', async () => {
+		const { metadata } = await fixture();
+		const { parseUpdateInfo, resolveFiles } = createRequire(import.meta.url)('electron-updater/out/providers/Provider.js');
+		const source = await readFile(join(metadata.directory, UPDATE_MANIFEST), 'utf8');
+		const base = new URL(`https://github.com/${RELEASE_REPOSITORY}/releases/download/${metadata.tag}/`);
+		const info = parseUpdateInfo(source, UPDATE_MANIFEST, new URL(UPDATE_MANIFEST, base));
+		const files = resolveFiles(info, base);
+		expect(files).toHaveLength(1);
+		expect(files[0].url.href).toBe(new URL(archiveNames(metadata.version)[1], base).href);
+		expect(files[0].info.sha512).toBe(await fileChecksum(join(metadata.directory, archiveNames(metadata.version)[1]), 'sha512'));
+		const config = JSON.parse(await readFile('resources/app-update.yml', 'utf8'));
+		const definition = JSON.parse(await readFile('package.json', 'utf8'));
+		expect(config).toMatchObject(definition.build.publish);
+		expect(`${config.owner}/${config.repo}`).toBe(RELEASE_REPOSITORY);
+	});
+
+	it('rejects mismatched update versions, URLs and ZIP digests even with a recomputed manifest checksum', async () => {
+		for (const change of ['version', 'url', 'hash']) {
+			const { metadata } = await fixture();
+			const path = join(metadata.directory, UPDATE_MANIFEST);
+			const manifest = JSON.parse(await readFile(path, 'utf8'));
+			if (change === 'version') {
+				manifest.version = '9.9.9';
+			} else if (change === 'url') {
+				manifest.files[0].url = 'https://example.com/unexpected.zip';
+			} else {
+				manifest.files[0].sha512 = 'invalid';
+			}
+			await writeFile(path, JSON.stringify(manifest));
+			const sums = join(metadata.directory, 'SHA256SUMS');
+			await writeFile(sums, (await readFile(sums, 'utf8')).replace(/^.*  latest-mac\.yml$/m, `${await fileChecksum(path)}  ${UPDATE_MANIFEST}`));
+			await expect(verifyReleaseFiles(metadata)).rejects.toThrow();
+		}
+	});
+
 	it('passes an identity qualifier accepted by electron-builder and retains the exact signing team', async () => {
 		const signing = createRequire(import.meta.url)('app-builder-lib/out/codeSign/macCodeSign.js') as {
 			findIdentityRawResult: Promise<string[]> | null;

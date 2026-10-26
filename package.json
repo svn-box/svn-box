@@ -17,8 +17,8 @@
 		"format": "prettier --write src tests scripts electron.vite.config.ts",
 		"format:check": "prettier --check src tests scripts electron.vite.config.ts package.json tsconfig.json README.md README.zh-CN.md release-notes .github",
 		"screenshots:readme": "npm run svn:build && npm run build && node scripts/capture-readme.mjs",
-		"package:mac": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dmg zip --arm64",
-		"package:dir": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dir --arm64",
+		"package:mac": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dmg zip --arm64 --publish never",
+		"package:dir": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dir --arm64 --publish never",
 		"svn:build": "node scripts/build-svn-runtime.mjs",
 		"icons:build": "node scripts/build-icons.mjs",
 		"themes:build": "node scripts/build-themes.mjs",
@@ -40,6 +40,7 @@
 		"class-variance-authority": "0.7.1",
 		"clsx": "2.1.1",
 		"cmdk": "1.1.1",
+		"electron-updater": "6.8.11",
 		"fast-xml-parser": "5.11.2",
 		"lucide-react": "0.577.0",
 		"react": "19.3.1",
@@ -67,6 +68,11 @@
 	},
 	"build": {
 		"appId": "app.svnbox.desktop",
+		"publish": {
+			"provider": "github",
+			"owner": "svn-box",
+			"repo": "svn-box"
+		},
 		"productName": "仓盒",
 		"artifactName": "svnbox-${version}-${arch}.${ext}",
 		"directories": {
@@ -77,6 +83,10 @@
 			"package.json"
 		],
 		"extraResources": [
+			{
+				"from": "resources/app-update.yml",
+				"to": "app-update.yml"
+			},
 			{
 				"from": "resources/svn/darwin-arm64",
 				"to": "svn",

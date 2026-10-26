@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, clipboard, safeStorage, Menu, nativeTheme } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, clipboard, safeStorage, Menu, nativeTheme, autoUpdater as nativeAutoUpdater } from 'electron';
+import electronUpdater from 'electron-updater';
 import { spawn, execFile } from 'node:child_process';
 import { readFile, writeFile, rename, lstat } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join } from 'node:path';
@@ -7,6 +8,8 @@ import { schemas, requestOptionsSchema } from '../shared/validation';
 import type { RpcName, RpcMap, Reply, AppError } from '../shared/types';
 import { getTheme } from '../shared/themes';
 import { operationOutput, operationLabels } from '../shared/operation-log';
+import { appReleasesUrl } from '../shared/app-updates';
+import { AppUpdates } from './app-updates';
 import { SvnService, type Vault } from './service';
 import { Store } from './store';
 import { Runner, SvnError } from './runner';
@@ -24,6 +27,18 @@ let window: BrowserWindow | null = null;
 let service: SvnService;
 let quitting = false;
 let exitApproved = false;
+let appUpdates: AppUpdates;
+let installingUpdate = false;
+let pendingSvnWrites = 0;
+
+async function startSvnWrite<T>(work: () => Promise<T>): Promise<T> {
+	pendingSvnWrites++;
+	try {
+		return await work();
+	} finally {
+		pendingSvnWrites--;
+	}
+}
 
 class SecureVault implements Vault {
 	private directory: string;
@@ -151,10 +166,22 @@ function registerIpc(): void {
 				throw new Error('不支持的操作');
 			}
 			const data: any = schemas[method].parse(input);
+			if (installingUpdate && method !== 'appUpdate') {
+				throw new Error('应用正在准备重新启动，请稍候。');
+			}
 			const request = requestOptionsSchema.parse(options ?? {});
 			const value = await service.withRequest(request.requestId, method, async () => {
 				let value: unknown;
 				switch (method) {
+					case 'appUpdate':
+						if (data.action === 'release') {
+							const version = appUpdates.getState().version;
+							await shell.openExternal(version ? `${appReleasesUrl}/tag/v${version}` : `${appReleasesUrl}/latest`);
+							value = appUpdates.getState();
+						} else {
+							value = await appUpdates.act(data.action);
+						}
+						break;
 					case 'state':
 						value = service.store.get();
 						break;
@@ -226,13 +253,13 @@ function registerIpc(): void {
 						value = await service.list(data.url, data.repositoryId);
 						break;
 					case 'checkout':
-						value = await service.checkout(data);
+						value = await startSvnWrite(() => service.checkout(data));
 						break;
 					case 'review':
 						value = await service.review(data);
 						break;
 					case 'execute':
-						value = await service.execute(data.reviewId);
+						value = await startSvnWrite(() => service.execute(data.reviewId));
 						break;
 					case 'operations':
 						value = service.getOperations();
@@ -359,6 +386,32 @@ app.whenReady().then(async () => {
 		return;
 	}
 	nativeTheme.themeSource = getTheme(service.store.get().settings.theme).scheme;
+	const updater = electronUpdater.autoUpdater;
+	updater.autoDownload = false;
+	updater.autoInstallOnAppQuit = false;
+	updater.allowDowngrade = false;
+	updater.allowPrerelease = false;
+	updater.disableDifferentialDownload = true;
+	updater.logger = null;
+	appUpdates = new AppUpdates({
+		client: updater,
+		version: app.getVersion(),
+		disabledReason: !app.isPackaged ? '开发模式下不检查应用更新。' : process.platform !== 'darwin' || process.arch !== 'arm64' ? '当前平台暂不支持应用内更新。' : undefined,
+		isBusy: () => pendingSvnWrites > 0 || service.getOperations().some((operation) => ['waiting', 'running'].includes(operation.state)),
+		beforeInstall: async () => {
+			await Promise.all([service.store.flush(), service.flush()]);
+		},
+		onChange: (state) => {
+			installingUpdate = state.phase === 'installing';
+			window?.webContents.send('svnbox:app-update', state);
+		},
+	});
+	nativeAutoUpdater.on('before-quit-for-update', () => {
+		if (installingUpdate) {
+			quitting = true;
+			runner.shutdown();
+		}
+	});
 	registerIpc();
 	Menu.setApplicationMenu(
 		Menu.buildFromTemplate([
@@ -366,6 +419,7 @@ app.whenReady().then(async () => {
 				label: '仓盒',
 				submenu: [
 					{ role: 'about', label: '关于仓盒' },
+					{ label: '检查更新', click: () => navigate('app-update') },
 					{ type: 'separator' },
 					{ label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => navigate('settings') },
 					{ type: 'separator' },
