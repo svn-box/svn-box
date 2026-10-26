@@ -9,12 +9,13 @@ import { promisify } from 'node:util';
 const exec = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const resources = join(root, 'resources');
-const source = join(resources, 'icon.png');
 const document = join(resources, 'svnbox.icon');
+const source = join(document, 'Assets/warehouse.png');
 const previews = join(resources, 'icon-previews');
+const composition = JSON.parse(await readFile(join(document, 'icon.json'), 'utf8'));
 const sourceBytes = await readFile(source);
 if (sourceBytes.toString('hex', 0, 8) !== '89504e470d0a1a0a' || sourceBytes.readUInt32BE(16) !== 1024 || sourceBytes.readUInt32BE(20) !== 1024) {
-	throw new Error('resources/icon.png 必须是 1024×1024 PNG；原图不会被构建脚本改写');
+	throw new Error('resources/svnbox.icon/Assets/warehouse.png 必须是 1024×1024 PNG；前景原图不会被构建脚本改写');
 }
 const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex');
 const selected = await exec('/usr/bin/xcode-select', ['-p']);
@@ -26,7 +27,6 @@ if (generation < 27) {
 	throw new Error('图标预览需要 Xcode / Icon Composer 27+；也可在 Composer 中直接编辑 resources/svnbox.icon');
 }
 await mkdir(previews, { recursive: true });
-await copyFile(source, join(document, 'Assets/warehouse.png'));
 const modes = [
 	['default', 'Default'],
 	['dark', 'Dark'],
@@ -53,6 +53,7 @@ for (const [name, rendition] of modes) {
 		...(name === 'tinted' ? ['--tint-color', '0.60', '--tint-strength', '0.60'] : []),
 	]);
 }
+await copyFile(join(previews, 'default.png'), join(resources, 'icon.png'));
 const temporary = await mkdtemp(join(tmpdir(), 'svnbox-icon-'));
 try {
 	const input = join(temporary, 'Icon.icon');
@@ -98,11 +99,11 @@ try {
 		join(previews, 'source.json'),
 		JSON.stringify(
 			{
-				source: 'resources/icon.png',
+				source: 'resources/svnbox.icon/Assets/warehouse.png',
 				sourceSha256,
 				composerVersion: version['short-bundle-version'],
 				artworkLayers: 1,
-				nativeBackground: ['system-light', 'system-dark'],
+				nativeBackground: [composition.fill],
 				previews: modes.map(([name]) => `${name}.png`),
 			},
 			null,
@@ -117,6 +118,6 @@ if (
 		.update(await readFile(source))
 		.digest('hex') !== sourceSha256
 ) {
-	throw new Error('构建期间原图发生变化，请重新生成图标');
+	throw new Error('构建期间前景原图发生变化，请重新生成图标');
 }
-console.log(`图标已编译：用户原图 → svnbox.icon → icon.icns；Icon Composer ${version['short-bundle-version']}`);
+console.log(`图标已编译：透明仓盒前景 → 原生蓝色底板 → icon.png / icon.icns；Icon Composer ${version['short-bundle-version']}`);

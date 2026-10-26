@@ -1,28 +1,29 @@
 {
-  "fill-specializations": [
-    {
-      "value": "system-light"
-    },
-    {
-      "appearance": "dark",
-      "value": "system-dark"
-    }
-  ],
+  "fill": {
+    "automatic-gradient": "srgb:0.29804,0.38824,0.90980,1.00000"
+  },
   "groups": [
     {
-      "name": "仓盒 · 用户提供的原图",
+      "name": "仓盒 · 轻透仓盒前景",
       "layers": [
         {
           "image-name": "warehouse.png",
-          "name": "icon.png",
-          "glass": false
+          "name": "仓盒与版本快照",
+          "glass": false,
+          "position": {
+            "scale": 0.920097,
+            "translation-in-points": [
+              0,
+              -11.501
+            ]
+          }
         }
       ],
       "lighting": "combined",
       "specular": false,
       "shadow": {
         "kind": "neutral",
-        "opacity": 0.16
+        "opacity": 0.08
       },
       "translucency": {
         "enabled": false,
