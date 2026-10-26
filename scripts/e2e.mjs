@@ -135,6 +135,36 @@ try {
 	}
 
 	await page.getByRole('button', { name: /^提交…/ }).click();
+	await page.locator('.commit-modal .commit-file').first().waitFor();
+	assert.equal(await page.locator('.commit-modal .diff-view').count(), 0, '提交弹窗不重复展示工作区差异');
+	assert.ok(await page.locator('.commit-modal .status-badge').count());
+	const commitTableStyle = await page.evaluate(() => {
+		const row = document.querySelector('.commit-file');
+		const fileRow = document.querySelector('.file-pane .file-row');
+		const header = document.querySelector('.commit-file-header');
+		const fileHeader = document.querySelector('.file-table-header .table-head');
+		const odd = document.querySelector('.commit-file-list [data-parity="odd"] > .commit-file');
+		return {
+			rowHeight: row.getBoundingClientRect().height,
+			fileRowHeight: fileRow.getBoundingClientRect().height,
+			rowFont: getComputedStyle(row).fontSize,
+			fileRowFont: getComputedStyle(fileRow).fontSize,
+			headerHeight: header.getBoundingClientRect().height,
+			fileHeaderHeight: fileHeader.getBoundingClientRect().height,
+			headerFont: getComputedStyle(header).fontSize,
+			fileHeaderFont: getComputedStyle(fileHeader).fontSize,
+			stripe: getComputedStyle(odd).backgroundColor,
+			headerBackground: getComputedStyle(fileHeader).backgroundColor,
+		};
+	});
+	assert.equal(commitTableStyle.rowHeight, commitTableStyle.fileRowHeight, '提交列表与工作区文件使用相同行高');
+	assert.equal(commitTableStyle.rowFont, commitTableStyle.fileRowFont);
+	assert.equal(commitTableStyle.headerHeight, commitTableStyle.fileHeaderHeight);
+	assert.equal(commitTableStyle.headerFont, commitTableStyle.fileHeaderFont);
+	assert.equal(commitTableStyle.stripe, commitTableStyle.headerBackground, '提交列表复用工作区斑马格配色');
+	await page.getByRole('checkbox', { name: '全选提交文件', exact: true }).check();
+	await page.getByRole('checkbox', { name: '全选提交文件', exact: true }).uncheck();
+	assert.equal(await page.getByRole('button', { name: '审阅提交范围', exact: true }).isDisabled(), true);
 	await page.getByRole('checkbox', { name: '提交 src/中文 @ 文件.ts', exact: true }).check();
 	await page.getByRole('textbox', { name: '提交说明', exact: true }).fill('修复多工作副本的上下文隔离');
 	await page.getByRole('button', { name: '稍后继续', exact: true }).click();
@@ -146,7 +176,7 @@ try {
 	await page.waitForFunction(() => document.querySelector('.draft-preview')?.textContent === '修复多工作副本的上下文隔离');
 	await page.waitForFunction(() => [...document.querySelectorAll('.diff-line code')].some((el) => el.textContent?.includes('version = 2')));
 	await page.screenshot({ path: resolve('test-results/workspace-light.png') });
-	await page.getByRole('button', { name: '继续编辑', exact: false }).click();
+	await page.getByRole('button', { name: '继续编辑', exact: false }).press('Enter');
 	await page.getByRole('button', { name: '审阅提交范围', exact: true }).click();
 	await page.getByRole('heading', { name: '提交审阅', exact: true }).waitFor();
 	assert.equal(await page.getByRole('dialog').count(), 1);
@@ -155,6 +185,7 @@ try {
 	await page.getByRole('button', { name: '确认提交', exact: true }).click();
 	await commitFeedback;
 	await page.waitForFunction(async () => (await window.svnbox.call('operations', undefined)).some((op) => op.label === '提交变更' && op.state === 'success'));
+	await page.waitForFunction(async (id) => (await window.svnbox.call('state')).sessions[id].draft === '', first.id);
 	assert.equal(await page.getByRole('dialog').count(), 0);
 	assert.equal((await call(page, 'status', { wcId: first.id })).files.find((file) => file.path === 'README.md').item, 'modified');
 	const update = await call(page, 'review', { wcId: second.id, action: 'update', paths: [] });
@@ -169,8 +200,23 @@ try {
 	await page.waitForSelector('.history-inline-diff .diff-line');
 	await page.screenshot({ path: resolve('test-results/history.png') });
 	await page.getByRole('button', { name: /^提交…/ }).click();
-	await page.getByRole('dialog').getByRole('button', { name: 'README.md', exact: true }).click();
-	await page.waitForFunction(() => [...document.querySelectorAll('.commit-diff .diff-line code')].some((el) => el.textContent?.includes('每个工作副本都有自己的提交草稿')));
+	await page.getByRole('dialog').getByRole('checkbox', { name: '提交 README.md', exact: true }).check();
+	assert.equal(await page.locator('.commit-modal .diff-view').count(), 0);
+	await page.getByRole('button', { name: '近期提交说明', exact: true }).click();
+	await page.getByRole('menuitem', { name: '修复多工作副本的上下文隔离', exact: true }).click();
+	assert.equal(await page.getByRole('textbox', { name: '提交说明', exact: true }).inputValue(), '修复多工作副本的上下文隔离');
+	await page.screenshot({ path: resolve('test-results/commit-simple.png') });
+	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1000, 680));
+	const commitBounds = await page.locator('.commit-modal').evaluate((dialog) => {
+		const bounds = dialog.getBoundingClientRect();
+		const list = dialog.querySelector('.commit-file-list').getBoundingClientRect();
+		const footer = dialog.querySelector('.dialog-footer').getBoundingClientRect();
+		return { top: bounds.top, bottom: bounds.bottom, height: innerHeight, overflow: dialog.scrollWidth - dialog.clientWidth, listBottom: list.bottom, footerTop: footer.top };
+	});
+	assert.ok(commitBounds.top >= 0 && commitBounds.bottom <= commitBounds.height && commitBounds.listBottom <= commitBounds.footerTop);
+	assert.equal(commitBounds.overflow, 0, '小窗口下提交列表与底部按钮完整显示');
+	await page.screenshot({ path: resolve('test-results/commit-simple-small.png') });
+	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 940));
 	await page.getByRole('button', { name: '稍后继续', exact: true }).click();
 	// Browse a repository inline and save an exact remote URL as a child bookmark.
 	const repo = (await call(page, 'state')).repositories[0];
@@ -204,7 +250,7 @@ try {
 	assert.equal(restored.workingCopies.length, 2);
 	assert.equal(restored.bookmarks.length, 1);
 	assert.equal(restored.sessions[second.id].draft, '设计系统的独立草稿');
-	assert.equal(restored.sessions[first.id].draft, '');
+	assert.equal(restored.sessions[first.id].draft, '修复多工作副本的上下文隔离');
 	assert.equal(restored.sessions[second.id].fileSearch, 'README');
 	assert.equal(await desktop.page.getByRole('textbox', { name: '搜索文件', exact: true }).inputValue(), 'README');
 	await desktop.page.getByRole('button', { name: '仓盒应用 trunk · 本地工作副本', exact: false }).first().click();
@@ -273,7 +319,7 @@ try {
 					'Electron 安全配置',
 					'仓库与路径组织',
 					'shadcn Combobox',
-					'历史视图下的本地提交差异',
+					'简洁提交列表、复用近期说明且不重复展示差异',
 					'非阻断 toast 反馈',
 				],
 				screenshots: 'test-results/',

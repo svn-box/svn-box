@@ -49,9 +49,9 @@ Browse revisions by date, expand changed paths, and open a commit's diff directl
 <details>
 <summary>Review a selective commit</summary>
 
-Choose the paths to include, inspect their differences, and edit a saved commit draft before reviewing the final scope.
+Write a commit message, reuse a recent message, and choose the paths to include before reviewing the final scope. Differences stay in the workspace.
 
-![svnbox commit dialog with selected paths, a commit message draft, and a diff preview](resources/screenshots/commit.png)
+![svnbox commit dialog with a message draft and a selectable list of changed paths and statuses](resources/screenshots/commit.png)
 
 </details>
 

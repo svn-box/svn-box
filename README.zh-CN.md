@@ -49,9 +49,9 @@
 <details>
 <summary>选择文件与提交审阅</summary>
 
-逐项选择本次提交的路径，检查差异，编辑保留的提交草稿，再审阅最终范围。
+填写或复用近期提交说明，逐项勾选本次提交的路径，再审阅最终范围。差异统一在工作区查看。
 
-![仓盒提交面板：文件选择、提交说明草稿和差异预览](resources/screenshots/commit.png)
+![仓盒提交面板：提交说明草稿、文件勾选、状态和路径](resources/screenshots/commit.png)
 
 </details>
 

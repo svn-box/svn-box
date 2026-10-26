@@ -679,7 +679,6 @@ export function App() {
 					recentMessages={state.recentMessages}
 					blocked={changed.length - commitFiles.length}
 					busy={reviewing || busyWrite}
-					scannedAt={snapshot?.scannedAt}
 					onReview={(paths) => void requestReview('commit', paths)}
 					onClose={() => setModal(null)}
 				/>

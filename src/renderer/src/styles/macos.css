@@ -240,12 +240,14 @@ body {
 
 /* Pixel-sized WebKit scrollbars disable macOS overlay scrolling. */
 .file-pane > .virtual-list,
+.commit-file-list > .virtual-list,
 .history-timeline {
 	scrollbar-width: thin;
 	scrollbar-color: var(--muted) transparent;
 }
 
-.file-table-header .table-head {
+.file-table-header .table-head,
+.commit-file-header {
 	background: var(--canvas);
 	font-size: 11px;
 }
@@ -672,19 +674,12 @@ select {
 }
 
 .commit-file-list,
-.commit-diff,
 .review-paths,
 .remote-list {
 	border-radius: 9px;
 	background: var(--bg);
 }
 
-.commit-editor label {
-	font-size: 12px;
-}
-
-.recent-messages .combobox-trigger,
-.draft-save,
 .dialog-footer > .muted {
 	font-size: 11px;
 }

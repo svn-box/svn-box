@@ -13,6 +13,7 @@ const root = await realpath(await mkdtemp(join(tmpdir(), 'svnbox-readme-')));
 const repositories = join(root, 'Repositories');
 const projects = join(root, 'Projects');
 const output = resolve('resources/screenshots');
+const targets = new Set(process.argv.slice(2));
 const selectedPath = 'src/components/WorkingCopyList.tsx';
 const errors = [];
 const screenshots = [];
@@ -274,6 +275,9 @@ async function theme(id, label) {
 }
 
 async function screenshot(name) {
+	if (targets.size && !targets.has(name)) {
+		return;
+	}
 	await page.locator('[data-sonner-toast]').waitFor({ state: 'hidden' });
 	await page.waitForFunction(() => !document.querySelector('.spin'));
 	await page.evaluate(async () => {
@@ -376,7 +380,7 @@ try {
 	await theme('ocean', '深蓝');
 	await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('svnbox:navigate', 'commit'));
 	await page.getByRole('dialog', { name: `提交到 ${copy.name}`, exact: true }).waitFor();
-	await page.waitForSelector('.commit-modal .diff-line');
+	await page.waitForSelector('.commit-modal .commit-file');
 	await screenshot('commit');
 	await page.getByRole('button', { name: '稍后继续', exact: true }).click();
 	await page.getByRole('button', { name: '浏览仓库 Atlas Studio', exact: true }).click();
