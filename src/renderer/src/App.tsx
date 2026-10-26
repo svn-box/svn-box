@@ -1,7 +1,7 @@
 import { operationAction } from '../../shared/operation-log';
 import { useTranslation } from 'react-i18next';
 import { getTheme } from '../../shared/themes';
-import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
 	Archive,
 	ArrowDownToLine,
@@ -46,6 +46,7 @@ import { useQueries, isCancelledError } from '@tanstack/react-query';
 import { acceptOperation, svnQueries, subscribeWorkspaceRuntime } from './queries/runtime';
 import { queryKeys } from './queries/svn-queries';
 import { useStatus, useOperationSummary } from './queries/hooks';
+import { useForegroundRefresh } from './queries/use-foreground-refresh';
 import { workspaceStore, useWorkspaceStore } from './state/workspace';
 import { WorkingCopyView } from './components/WorkingCopyView';
 import { WorkspaceViewTabs, WorkingCopyMenu, WorkspaceStatus } from './components/WorkspaceToolbar';
@@ -88,6 +89,23 @@ export function App() {
 	const wcRepository = state?.repositories.find((repository) => repository.id === wc?.repositoryId);
 	const activeRepository = state?.repositories.find((repo) => repo.id === activeRepositoryId);
 	const snapshot = useStatus(activeId).data;
+	useForegroundRefresh(wc?.id);
+	const revertiblePaths = useMemo(() => {
+		const paths = new Set<string>();
+		for (const file of snapshot?.files ?? []) {
+			if (!isChanged(file) || file.external) {
+				continue;
+			}
+			paths.add(file.path);
+			paths.add('.');
+			let ancestor = file.path;
+			while (ancestor.includes('/')) {
+				ancestor = ancestor.slice(0, ancestor.lastIndexOf('/'));
+				paths.add(ancestor);
+			}
+		}
+		return paths;
+	}, [snapshot]);
 	const statusQueries = useQueries({ queries: (state?.workingCopies ?? []).map((copy) => svnQueries.statusOptions(copy.id)) });
 	const loading = Object.fromEntries((state?.workingCopies ?? []).map((copy, index) => [copy.id, statusQueries[index].isFetching]));
 	const preparingUpdate = useWorkspaceStore((store) => !!(activeId && store.updateIntents[activeId]?.preparing));
@@ -447,7 +465,7 @@ export function App() {
 				</DropdownMenuItem>,
 			],
 			[
-				file && isChanged(file) && (
+				revertiblePaths.has(path) && (
 					<DropdownMenuItem key="revert" icon={<RotateCcw />} destructive onSelect={() => void requestReview('revert', [path])}>
 						{path === '.' ? t('workspace.revertAllLocalChanges') : t('workspace.revertLocalChanges')}
 					</DropdownMenuItem>

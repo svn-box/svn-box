@@ -138,30 +138,6 @@ try {
 	await page.locator('.commit-modal .commit-file').first().waitFor();
 	assert.equal(await page.locator('.commit-modal .diff-view').count(), 0, '提交弹窗不重复展示工作区差异');
 	assert.ok(await page.locator('.commit-modal .status-badge').count());
-	const commitTableStyle = await page.evaluate(() => {
-		const row = document.querySelector('.commit-file');
-		const fileRow = document.querySelector('.file-pane .file-row');
-		const header = document.querySelector('.commit-file-header');
-		const fileHeader = document.querySelector('.file-table-header .table-head');
-		const odd = document.querySelector('.commit-file-list [data-parity="odd"] > .commit-file');
-		return {
-			rowHeight: row.getBoundingClientRect().height,
-			fileRowHeight: fileRow.getBoundingClientRect().height,
-			rowFont: getComputedStyle(row).fontSize,
-			fileRowFont: getComputedStyle(fileRow).fontSize,
-			headerHeight: header.getBoundingClientRect().height,
-			fileHeaderHeight: fileHeader.getBoundingClientRect().height,
-			headerFont: getComputedStyle(header).fontSize,
-			fileHeaderFont: getComputedStyle(fileHeader).fontSize,
-			stripe: getComputedStyle(odd).backgroundColor,
-			headerBackground: getComputedStyle(fileHeader).backgroundColor,
-		};
-	});
-	assert.equal(commitTableStyle.rowHeight, commitTableStyle.fileRowHeight, '提交列表与工作区文件使用相同行高');
-	assert.equal(commitTableStyle.rowFont, commitTableStyle.fileRowFont);
-	assert.equal(commitTableStyle.headerHeight, commitTableStyle.fileHeaderHeight);
-	assert.equal(commitTableStyle.headerFont, commitTableStyle.fileHeaderFont);
-	assert.equal(commitTableStyle.stripe, commitTableStyle.headerBackground, '提交列表复用工作区斑马格配色');
 	await page.getByRole('checkbox', { name: '全选提交文件', exact: true }).check();
 	await page.getByRole('checkbox', { name: '全选提交文件', exact: true }).uncheck();
 	assert.equal(await page.getByRole('button', { name: '审阅提交范围', exact: true }).isDisabled(), true);

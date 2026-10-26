@@ -2,9 +2,15 @@ import { translate, UI_RESOURCES } from './i18n';
 import type { Operation } from './types';
 
 const actions = ['commit', 'update', 'add', 'rename', 'delete', 'ignore', 'revert', 'resolve', 'cleanup', 'checkout'] as const;
+const legacyRevertLabels = new Set(['还原变更', 'Revert Local Changes']);
 
 export function operationAction(operation: Pick<Operation, 'action' | 'label'>): Operation['action'] {
-	return operation.action ?? actions.find((action) => Object.values(UI_RESOURCES).some((resource) => resource.translation.operations[action] === operation.label));
+	return (
+		operation.action ??
+		(legacyRevertLabels.has(operation.label)
+			? 'revert'
+			: actions.find((action) => Object.values(UI_RESOURCES).some((resource) => resource.translation.operations[action] === operation.label)))
+	);
 }
 
 export function operationLabel(operation: Pick<Operation, 'action' | 'label'>): string {

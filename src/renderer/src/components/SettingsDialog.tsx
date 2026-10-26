@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { isUiLanguage, translate, UI_LANGUAGE, type UiLanguage } from '../../../shared/i18n';
 import { useEffect, useId, useRef, useState } from 'react';
-import { Check, CircleAlert, LoaderCircle, Settings, ShieldCheck, Wrench } from 'lucide-react';
+import { Check, CircleAlert, LoaderCircle, RefreshCw, Settings, ShieldCheck, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import { themes } from '../../../shared/themes';
 import type { AppState, Detection, Theme } from '../../../shared/types';
@@ -31,6 +31,15 @@ const pages = [
 
 		icon: Wrench,
 	},
+	{
+		id: 'updates',
+
+		get label() {
+			return translate('appUpdateSection.appUpdates');
+		},
+
+		icon: RefreshCw,
+	},
 ] as const;
 
 export function SettingsDialog({
@@ -46,7 +55,7 @@ export function SettingsDialog({
 }) {
 	const { t, i18n } = useTranslation();
 	const id = useId();
-	const [page, setPage] = useState<(typeof pages)[number]['id']>('general');
+	const [page, setPage] = useState<(typeof pages)[number]['id']>(updateRequest ? 'updates' : 'general');
 	const [path, setPath] = useState(state.settings.svnPath);
 	const [tool, setTool] = useState(state.settings.mergeTool);
 	const [detection, setDetection] = useState<Detection>();
@@ -61,7 +70,7 @@ export function SettingsDialog({
 	const dirty = path !== state.settings.svnPath || tool !== state.settings.mergeTool;
 	useEffect(() => {
 		if (updateRequest) {
-			setPage('general');
+			setPage('updates');
 		}
 	}, [updateRequest]);
 	useEffect(() => {
@@ -258,9 +267,8 @@ export function SettingsDialog({
 										))}
 									</div>
 								</div>
-								<AppUpdateSection focusRequest={updateRequest} />
 							</>
-						) : (
+						) : page === 'tools' ? (
 							<>
 								{toolError && (
 									<p className="settings-tool-error" role="alert">
@@ -308,6 +316,8 @@ export function SettingsDialog({
 									<p className="settings-help">{t('settingsDialog.useItToMergeConflictFilesSaveReturn')}</p>
 								</div>
 							</>
+						) : (
+							<AppUpdateSection focusRequest={updateRequest} />
 						)}
 					</section>
 				</div>
@@ -317,7 +327,9 @@ export function SettingsDialog({
 							? t('settingsDialog.unsavedChangesOnTheToolsPage')
 							: page === 'general'
 								? t('settingsDialog.appearanceChangesSaveAutomatically')
-								: t('settingsDialog.toolSettingsAreStoredOnThisMac')}
+								: page === 'tools'
+									? t('settingsDialog.toolSettingsAreStoredOnThisMac')
+									: null}
 					</span>
 					<Button variant="outline" onClick={onClose}>
 						{t('common.close')}

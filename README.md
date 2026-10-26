@@ -9,7 +9,7 @@
     <a href="#screenshots">Screenshots</a> ·
     <a href="https://github.com/svn-box/svn-box/issues">Report an issue</a>
   </p>
-  <p><sub>v0.1.2 · macOS 13+ · Apple Silicon (arm64)</sub></p>
+  <p><sub>v0.1.4 · macOS 13+ · Apple Silicon (arm64)</sub></p>
 </div>
 
 svnbox (仓盒) brings your Subversion projects into one desktop workspace. Switch between working copies, review changes, commit selected paths, and explore history without losing your place.
@@ -23,7 +23,7 @@ The app interface supports **English and Simplified Chinese**, with instant swit
 - **Change review** — browse a compact file tree, filter SVN states, and compare text and property changes with unified or side-by-side diffs.
 - **Selective commits** — choose paths, review the actual commit scope, reuse recent messages, and recover drafts after restarting the app.
 - **History** — explore a collapsible timeline, load earlier revisions, inspect changed paths, and view differences within each commit.
-- **SVN operations** — update, add, rename, delete, ignore, revert, and clean up working copies. Inspect conflicts and open an external comparison or merge tool.
+- **SVN operations** — update, add, rename, delete, ignore, discard local changes, and clean up working copies. Inspect conflicts and open an external comparison or merge tool.
 - **Connection credentials** — save encrypted credentials for a connection or repository path and share them across matching child URLs.
 - **Operation logs** — inspect progress and command output, cancel running tasks, filter or copy logs, and clear completed records.
 - **Desktop controls** — keyboard navigation, context menus, Finder and Terminal actions, and six appearance themes.
@@ -89,9 +89,9 @@ Press **⌘↵** to prepare a commit. Write a message, choose the paths to inclu
 
 ### Refresh and update
 
-Press **⌘R** to refresh local status. Press **⌘U** to update the working copy from its repository. Open operation logs with **⌘J** to inspect output or cancel an active task. Cancellation does not undo changes already completed.
+Returning to svnbox refreshes the current working copy’s local status. Press **⌘R** to refresh it manually. Press **⌘U** to update the working copy from its repository. Open operation logs with **⌘J** to inspect output or cancel an active task. Cancellation does not undo changes already completed.
 
-Use file context menus for add, rename, delete, ignore, and revert operations. Destructive operations show their impact before confirmation. For conflicts, review the details, use an external tool if needed, refresh the status, and explicitly mark the result as resolved.
+Use file context menus for add, rename, delete, ignore, and discard operations. **Discard Local Changes** removes uncommitted edits; directory and working-copy actions include their changed descendants. Destructive operations show their impact before confirmation. For conflicts, review the details, use an external tool if needed, refresh the status, and explicitly mark the result as resolved.
 
 ### Explore history
 
@@ -105,6 +105,6 @@ Drag the panel dividers to resize the workspace or collapse the inspector. Open 
 
 ### Update the application
 
-Choose **svnbox → Check for Updates** or open **Settings → General → Application Updates**. Checking does not download anything. Choose Download, then Restart and Install when ready. Running SVN operations must finish before installation, and commit drafts are saved before restarting.
+Choose **svnbox → Check for Updates** or open **Settings → App Updates**. Checking does not download anything. Choose Download, then Restart and Install when ready. Running SVN operations must finish before installation, and commit drafts are saved before restarting.
 
 Updates come from this repository's stable GitHub Releases. Automatic installation requires a signed macOS build. Older versions without this update entry need one manual installation of a version that includes it.

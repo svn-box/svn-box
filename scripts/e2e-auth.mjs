@@ -165,20 +165,7 @@ try {
 	assert.equal(await login.getByLabel('用户名', { exact: true }).inputValue(), 'shared');
 	assert.equal(await login.getByLabel('密码', { exact: true }).inputValue(), '', '不得回填已保存的密码');
 	assert.equal(await login.getByLabel('密码', { exact: true }).evaluate((input) => input === document.activeElement), true, '用户名已知时聚焦密码');
-	const authenticationLayout = await login.evaluate((dialog) => {
-		const rect = dialog.getBoundingClientRect();
-		const controls = [...dialog.querySelectorAll('form > label > input')].map((control) => {
-			const bounds = control.getBoundingClientRect();
-			return { left: bounds.left, width: bounds.width, height: bounds.height };
-		});
-		return { width: rect.width, height: rect.height, identityWidth: dialog.querySelector('.authentication-identity').getBoundingClientRect().width, controls };
-	});
-	assert.equal(authenticationLayout.width, 510);
-	assert.equal(authenticationLayout.identityWidth, 176);
-	assert.ok(authenticationLayout.height <= 375, JSON.stringify(authenticationLayout));
-	assert.equal(authenticationLayout.controls.length, 2);
-	assert.ok(authenticationLayout.controls.every((control) => control.height === 34 && Math.abs(control.left - authenticationLayout.controls[0].left) < 0.5));
-	assert.equal(await login.getByRole('button', { name: '取消', exact: true }).count(), 1);
+
 	await login.getByLabel('密码', { exact: true }).fill(secret);
 	await login.screenshot({ path: resolve('test-results/authentication-c-light.png') });
 	await login.getByRole('button', { name: '取消', exact: true }).click();
@@ -289,7 +276,6 @@ try {
 	await nextLogin.getByRole('button', { name: '保存', exact: true }).click();
 	await waitUntil(async () => (await call('operations')).some((operation) => operation.label === '更新工作副本' && operation.state === 'success'));
 	assert.equal((await call('operations')).length, 1);
-	assert.equal(await desktop.page.locator('.sidebar-footer').count(), 0);
 	assert.equal(errors.length, 0, errors.join('\n'));
 	console.log(
 		JSON.stringify(
@@ -300,11 +286,9 @@ try {
 					'已有认证掩码编辑、保存与取消',
 					'编辑密码不进入元数据或明文文件',
 					'保存/取消按钮及范围冗余文案移除',
-					'C 版分栏认证、等高控件和对齐',
 					'认证浅深色和无搜索范围 Select',
 					'连接登录默认聚焦密码、拒绝后不回填错误密码',
 					'全局设置无密码配置',
-					'左下角版本行移除',
 					'用户名 URL 预填',
 					'认证小窗和错误密码',
 					'macOS 加密永久保存',

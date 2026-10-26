@@ -97,10 +97,10 @@ try {
 				.click(),
 		);
 		await page.getByText('已是最新版本', { exact: true }).waitFor();
-		assert.equal(await page.getByRole('tab', { name: '通用设置', exact: true }).getAttribute('aria-selected'), 'true');
+		assert.equal(await page.getByRole('tab', { name: '应用更新', exact: true }).getAttribute('aria-selected'), 'true');
 		await page.getByRole('tab', { name: '工具', exact: true }).click();
 		assert.equal(await page.getByLabel('外部合并工具', { exact: true }).inputValue(), '/tmp/unsaved-update-test.app');
-		await page.getByRole('tab', { name: '通用设置', exact: true }).click();
+		await page.getByRole('tab', { name: '应用更新', exact: true }).click();
 		await instance.evaluate(() => {
 			globalThis.updateTest.mode = 'error';
 		});
@@ -117,10 +117,14 @@ try {
 		await page.waitForFunction(() => document.querySelector('[aria-label="应用更新下载进度"]')?.value === 37);
 		await page.getByRole('button', { name: '关闭', exact: true }).first().click();
 		await navigate('settings');
+		assert.equal(await page.locator('.settings-app-update').count(), 0);
+		await page.getByRole('tab', { name: '应用更新', exact: true }).click();
 		await page.waitForFunction(() => document.querySelector('[aria-label="应用更新下载进度"]')?.value === 37);
 		await instance.evaluate(() => globalThis.updateTest.finish());
 		await page.getByRole('button', { name: '重启并安装', exact: true }).waitFor();
+		await page.getByRole('tab', { name: '通用设置', exact: true }).click();
 		await page.getByRole('button', { name: '灰色', exact: true }).click();
+		await page.getByRole('tab', { name: '应用更新', exact: true }).click();
 		await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
 		await instance.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1000, 680));
 		await page.locator('.settings-app-update').scrollIntoViewIfNeeded();

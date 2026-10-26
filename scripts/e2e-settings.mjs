@@ -56,6 +56,7 @@ try {
 	const dialog = page.getByRole('dialog', { name: '设置', exact: true });
 	const general = dialog.getByRole('tab', { name: '通用设置', exact: true });
 	const tools = dialog.getByRole('tab', { name: '工具', exact: true });
+	const updates = dialog.getByRole('tab', { name: '应用更新', exact: true });
 	assert.equal(await general.getAttribute('aria-selected'), 'true');
 	assert.equal(await dialog.getByRole('combobox', { name: '界面语言', exact: true }).isDisabled(), false);
 	assert.equal(await dialog.getByLabel('可执行文件路径').count(), 0);
@@ -73,6 +74,8 @@ try {
 	await page.screenshot({ animations: 'disabled', path: resolve('test-results/settings-general-dark.png') });
 	await general.focus();
 	await page.keyboard.press('End');
+	assert.equal(await updates.getAttribute('aria-selected'), 'true');
+	await page.keyboard.press('ArrowUp');
 	assert.equal(await tools.getAttribute('aria-selected'), 'true');
 	assert.equal(await tools.evaluate((button) => button === document.activeElement), true);
 	const detected = await call('detect', {});
@@ -117,7 +120,7 @@ try {
 			{
 				result: 'passed',
 				checks: [
-					'通用/工具两页与键盘导航',
+					'通用/工具/应用更新分页与键盘导航',
 					'语言能力如实显示',
 					'白色/灰色及六套外观、固定配色即时保存',
 					'分页保留工具输入',

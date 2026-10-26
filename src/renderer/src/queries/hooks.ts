@@ -59,8 +59,8 @@ export function useOperations() {
 	return useQuery(svnQueries.operationOptions()).data ?? [];
 }
 
-export type OperationSummary = Pick<Operation, 'id' | 'wcId' | 'state' | 'label'>;
-const summarizeOperations = (operations: Operation[]): OperationSummary[] => operations.map(({ id, wcId, state, label }) => ({ id, wcId, state, label }));
+export type OperationSummary = Pick<Operation, 'id' | 'wcId' | 'state' | 'label' | 'action'>;
+const summarizeOperations = (operations: Operation[]): OperationSummary[] => operations.map(({ id, wcId, state, label, action }) => ({ id, wcId, state, label, action }));
 
 export function useOperationSummary() {
 	return useQuery({ ...svnQueries.operationOptions(), select: summarizeOperations, structuralSharing: true }).data ?? [];
