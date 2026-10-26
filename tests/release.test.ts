@@ -6,6 +6,9 @@ import { archiveNames, fileChecksum, previewMode, readReleaseMetadata, RELEASE_R
 import { ensureReleaseAbsent, findRelease, readReleaseTarget, type RepositoryRelease } from '../scripts/github-release-api.ts';
 import { publishRelease } from '../scripts/github-release.ts';
 import { buildEnvironment, releaseCommand, requireSigningEnvironment } from '../scripts/release-mac.ts';
+import { readGitHubJson } from '../scripts/github-api.ts';
+
+vi.mock('../scripts/github-api.ts', () => ({ readGitHubJson: vi.fn() }));
 
 const temporary: string[] = [];
 const token = 'dummy-release-token';
@@ -13,6 +16,7 @@ const commit = 'a'.repeat(40);
 
 afterEach(async () => {
 	vi.unstubAllGlobals();
+	vi.mocked(readGitHubJson).mockReset();
 	await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
@@ -37,16 +41,16 @@ async function fixture(): Promise<{ root: string; metadata: ReleaseMetadata; fil
 }
 
 function mockResponses(values: Response[]): void {
-	vi.stubGlobal(
-		'fetch',
-		vi.fn(async () => {
-			const response = values.shift();
-			if (!response) {
-				throw new Error('Unexpected release API request.');
-			}
-			return response;
-		}),
-	);
+	vi.mocked(readGitHubJson).mockImplementation(async () => {
+		const response = values.shift();
+		if (!response) {
+			throw new Error('Unexpected release API request.');
+		}
+		if (!response.ok) {
+			throw new Error(`GitHub API request failed: HTTP ${response.status}.`);
+		}
+		return response.json();
+	});
 }
 
 function targetResponses(sha = commit): Response[] {
@@ -134,10 +138,8 @@ describe('0.1.0 release invariants', () => {
 	});
 
 	it('requires authentication, a public repository and the exact pushed tag commit', async () => {
-		const fetch = vi.fn();
-		vi.stubGlobal('fetch', fetch);
+		vi.mocked(readGitHubJson).mockRejectedValue(new Error('Missing GitHub release token.'));
 		await expect(readReleaseTarget('v0.1.0', commit, '')).rejects.toThrow('token');
-		expect(fetch).not.toHaveBeenCalled();
 		mockResponses([Response.json({ private: true })]);
 		await expect(readReleaseTarget('v0.1.0', commit, token)).rejects.toThrow('public');
 		mockResponses(targetResponses('b'.repeat(40)));
@@ -224,10 +226,9 @@ describe('0.1.0 release invariants', () => {
 		await expect(publishRelease(metadata, commit, token, run)).rejects.toThrow('already');
 		expect(run).not.toHaveBeenCalled();
 		await writeFile(files[1], 'changed bytes');
-		const fetch = vi.fn();
-		vi.stubGlobal('fetch', fetch);
+		vi.mocked(readGitHubJson).mockClear();
 		await expect(publishRelease(metadata, commit, token, run)).rejects.toThrow('SHA256');
-		expect(fetch).not.toHaveBeenCalled();
+		expect(readGitHubJson).not.toHaveBeenCalled();
 		expect(run).not.toHaveBeenCalled();
 	});
 });

@@ -2,6 +2,7 @@ import { lstat } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { z } from 'zod';
 import { fileChecksum, RELEASE_REPOSITORY } from './release-metadata.ts';
+import { readGitHubJson } from './github-api.ts';
 
 const releaseSchema = z.object({
 	tag_name: z.string(),
@@ -11,41 +12,18 @@ const releaseSchema = z.object({
 });
 export type RepositoryRelease = z.infer<typeof releaseSchema>;
 
-async function request(path: string, token: string): Promise<Response> {
-	if (!token.trim()) {
-		throw new Error('Missing GitHub release token.');
-	}
-	try {
-		return await fetch(`https://api.github.com/repos/${RELEASE_REPOSITORY}${path}`, {
-			headers: {
-				Accept: 'application/vnd.github+json',
-				Authorization: `Bearer ${token}`,
-				'User-Agent': 'svnbox-release',
-				'X-GitHub-Api-Version': '2022-11-28',
-			},
-			signal: AbortSignal.timeout(30000),
-		});
-	} catch {
-		throw new Error('GitHub release request failed.');
-	}
+async function request(path: string, token: string): Promise<unknown> {
+	return readGitHubJson(`repos/${RELEASE_REPOSITORY}${path}`, token);
 }
 
 export async function readReleaseTarget(tag: string, commit: string, token: string): Promise<string> {
 	if (!/^[a-f\d]{40}$/.test(commit)) {
 		throw new Error('Release requires the exact source commit.');
 	}
-	const response = await request('', token);
-	if (!response.ok) {
-		throw new Error(`Cannot read release repository: HTTP ${response.status}.`);
-	}
-	if (z.object({ private: z.boolean() }).parse(await response.json()).private) {
+	if (z.object({ private: z.boolean() }).parse(await request('', token)).private) {
 		throw new Error('The distribution repository must be public.');
 	}
-	const target = await request(`/commits/${encodeURIComponent(tag)}`, token);
-	if (!target.ok) {
-		throw new Error(`Cannot resolve the pushed release tag: HTTP ${target.status}.`);
-	}
-	const actual = z.object({ sha: z.string().regex(/^[a-f\d]{40}$/) }).parse(await target.json()).sha;
+	const actual = z.object({ sha: z.string().regex(/^[a-f\d]{40}$/) }).parse(await request(`/commits/${encodeURIComponent(tag)}`, token)).sha;
 	if (actual !== commit) {
 		throw new Error('Release tag no longer matches the built source commit.');
 	}
@@ -55,11 +33,7 @@ export async function readReleaseTarget(tag: string, commit: string, token: stri
 export async function findRelease(tag: string, token: string): Promise<RepositoryRelease | undefined> {
 	// Authenticated pagination includes drafts, unlike a public tag lookup.
 	for (let page = 1; page <= 1000; page++) {
-		const response = await request(`/releases?per_page=100&page=${page}`, token);
-		if (!response.ok) {
-			throw new Error(`Cannot read release list: HTTP ${response.status}.`);
-		}
-		const releases = z.array(releaseSchema).parse(await response.json());
+		const releases = z.array(releaseSchema).parse(await request(`/releases?per_page=100&page=${page}`, token));
 		const release = releases.find((entry) => entry.tag_name === tag);
 		if (release || releases.length < 100) {
 			return release;
