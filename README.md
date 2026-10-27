@@ -122,3 +122,11 @@ Drag the panel dividers to resize the workspace or collapse the inspector. Open 
 Choose **svnbox → Check for Updates** or open **Settings → App Updates**. Checking does not download anything. Choose Download, then Restart and Install when ready. Running SVN operations must finish before installation, and commit drafts are saved before restarting.
 
 Updates come from this repository's stable GitHub Releases. Automatic installation requires a signed macOS build. Older versions without this update entry need one manual installation of a version that includes it.
+
+## License
+
+svnbox uses the custom [svnbox Source-Available License 1.0](LICENSE). **Personal use and internal company use, including commercial work, are free**, with no per-user or per-device fees. You may study, modify, build and redistribute the software free of charge; internal modifications do not need to be published.
+
+**Selling the software or its derivatives requires separate written permission**, including renaming, rebranding or repackaging it for sale, paid downloads, subscriptions and paid activation. Genuine installation, training, support and custom development services may be charged separately while the software and the right to use it remain free. Redistribution must retain the license and attribution; modified versions must identify their origin and changes.
+
+This sales restriction makes svnbox **source-available**, rather than open source under the [OSI definition](https://opensource.org/osd). The license does not retroactively revoke rights already granted under earlier licenses. Third-party components retain their own licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md) and the [full license texts](THIRD_PARTY_LICENSES.txt).

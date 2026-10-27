@@ -1,0 +1,159 @@
+svnbox 源码可用许可协议 1.0
+svnbox Source-Available License 1.0
+
+Copyright (c) 2026 svnbox contributors
+
+中文条款
+
+1. 适用范围
+
+本协议适用于随附本协议发布的 svnbox（仓盒）原创代码、文档和资源，以及其中
+受本协议约束的部分的修改版和衍生作品（以下统称“本软件”）。第三方组件仍适用
+其各自的许可证，不由本协议重新授权。
+
+2. 免费许可
+
+在遵守本协议的前提下，任何个人或组织均可在全球范围内免费使用、复制、研究、
+修改和构建本软件，并可免费分发源码或可执行版本，包括修改版和衍生作品。
+
+明确允许公司、其他营利组织及其员工在内部工作和商业业务中免费使用、部署、
+修改本软件，不按用户数、设备数或使用时长收费，也不要求为内部修改公开源码。
+使用本软件管理项目、开发产品、交付服务或从事其他营利业务本身不受禁止。
+使用本软件处理的文件、仓库内容及其他工作成果不因使用本软件而受本协议约束。
+
+3. 禁止收费销售软件
+
+未经相关著作权人另行书面授权，不得向第三方销售本软件或以收费方式提供本软件
+的副本、下载、使用许可或使用权，包括：
+
+- 将原版、修改版或衍生作品作为收费软件销售；
+- 改名、替换图标或品牌、重新打包、编译后收费销售；
+- 通过付费下载、订阅、激活码、会员资格或其他对价提供软件使用权；
+- 将软件价款隐藏在捆绑销售、强制服务费或其他收费安排中。
+
+本条限制针对软件本身的收费销售。允许独立收取真实的安装、配置、培训、技术支持
+或定制开发服务费用，前提是软件及其使用权仍免费提供，且服务收费不被用来变相
+销售软件。公司内部部署和使用不视为向第三方销售。
+
+4. 分发条件与署名
+
+分发本软件或其中受本协议约束的实质性部分时，必须保留本协议、原有著作权声明
+以及适用的第三方许可证和声明，并让接收者能够查阅。不得以其他条款剥夺接收者
+依本协议享有的免费使用、修改和免费分发权利。
+
+分发修改版时，应清楚注明其基于 svnbox、已作修改，并提供原项目链接：
+https://github.com/svn-box/svn-box
+免费分发的修改版可以使用不同名称，但不得冒充官方版本或暗示获得原作者背书。
+除真实说明来源和保留已有声明所必需的使用外，本协议不授予任何商标或品牌权利。
+
+5. 第三方组件与既有授权
+
+第三方代码、运行库、图标及其他组件继续适用其各自的许可证，详见
+THIRD_PARTY_NOTICES.md、THIRD_PARTY_LICENSES.txt 及随软件附带的上游声明。
+本协议的销售限制不适用于从本软件中独立使用或分发的第三方组件。
+
+本协议仅适用于随附本协议授予的权利，不追溯撤销任何接收者已经根据早期版本的
+许可证或其他有效协议获得的权利。各著作权人仅就其有权授权的内容授予许可。
+
+6. 终止
+
+违反本协议时，本协议授予的许可自动终止；已遵守本协议的其他接收者所获许可
+不因此终止。停止违规并不自动恢复已终止的许可，恢复需获得相关著作权人授权。
+
+7. 免责与责任限制
+
+在适用法律允许的最大范围内，本软件按“原样”提供，不提供任何明示或默示担保，
+包括适销性、特定用途适用性和不侵权担保。作者和著作权人不对因本软件或使用本
+软件引起的任何索赔、损失或责任承担责任，无论基于合同、侵权或其他法律依据。
+本条不排除或限制适用法律不允许排除或限制的责任。
+
+本协议为自定义的源码可用许可，包含销售限制，不属于 OSI 定义的开源许可证。
+中英文条款表达相同许可；如有歧义，以中文条款为准。
+
+English terms
+
+1. Scope
+
+This License covers original svnbox (仓盒) code, documentation and assets
+distributed with this License, and modifications and derivative works of the
+portions covered by it (the "Software"). Third-party components retain their own
+licenses and are not relicensed here.
+
+2. Free permission
+
+Subject to this License, any individual or organization may use, copy, study,
+modify and build the Software worldwide, free of charge, and redistribute its
+source or executable forms free of charge, including modifications and derivatives.
+
+Companies, other for-profit organizations and their employees may expressly use,
+deploy and modify the Software internally in their work and commercial operations
+free of charge. There are no per-user, per-device or time-based fees, and internal
+modifications need not be published. Using the Software to manage projects,
+develop products, deliver services or otherwise conduct a for-profit business is
+permitted. Files, repository contents and other work produced or processed using
+the Software do not become subject to this License merely through that use.
+
+3. No paid sale of the Software
+
+Without separate written permission from the relevant copyright holders, you may
+not sell the Software to third parties or provide copies, downloads, licenses or
+access to the Software for a fee or other consideration. This includes:
+
+- Selling the original Software, modifications or derivatives as paid software;
+- Charging for renamed, rebranded, repackaged or recompiled versions;
+- Providing software access through paid downloads, subscriptions, activation
+  codes, memberships or other consideration;
+- Hiding the software price in a bundle, mandatory service fee or other arrangement.
+
+This restriction concerns the paid sale of the Software itself. You may charge
+separately for genuine installation, configuration, training, technical support
+or custom development services, provided that the Software and the right to use
+it remain free of charge and the service fee does not disguise a software sale.
+Internal company deployment and use are not sales to third parties.
+
+4. Redistribution and attribution
+
+When distributing the Software or substantial portions covered by this License,
+retain this License, existing copyright notices and applicable third-party
+licenses and notices, and make them available to recipients. You may not impose
+terms that remove recipients' rights under this License to use, modify or
+redistribute the Software free of charge.
+
+Distributed modifications must clearly identify their svnbox origin, state that
+they have been modified and link to https://github.com/svn-box/svn-box.
+Freely distributed modifications may use a different name, but must not
+impersonate an official release or imply endorsement by the original authors.
+No trademark or branding rights are granted beyond the use necessary to truthfully
+identify origin and preserve existing notices.
+
+5. Third-party components and prior grants
+
+Third-party code, runtimes, icons and other components retain their own licenses.
+See THIRD_PARTY_NOTICES.md, THIRD_PARTY_LICENSES.txt and accompanying upstream
+notices. This License's sales restriction does not apply to third-party components
+used or distributed independently of the Software.
+
+This License governs only rights granted with this License. It does not
+retroactively revoke rights already granted under an earlier version's license
+or another valid agreement. Each copyright holder grants permission only for
+material they are entitled to license.
+
+6. Termination
+
+The permissions granted by this License terminate automatically upon breach.
+Compliant recipients' permissions are not terminated by another person's breach.
+Ending a breach does not automatically reinstate terminated permissions;
+reinstatement requires authorization from the relevant copyright holders.
+
+7. Disclaimer and limitation of liability
+
+To the maximum extent permitted by applicable law, the Software is provided
+"AS IS", without express or implied warranties, including merchantability,
+fitness for a particular purpose and non-infringement. The authors and copyright
+holders are not liable for claims, damages or other liability arising from the
+Software or its use, whether in contract, tort or otherwise. This does not exclude
+or limit liability that applicable law does not allow to be excluded or limited.
+
+This is a custom source-available license with a sales restriction, not an open
+source license under the OSI definition. The Chinese and English terms describe
+the same permission; the Chinese terms control if there is an ambiguity.

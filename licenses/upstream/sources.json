@@ -1,0 +1,26 @@
+{
+	"@nodable/entities": {
+		"version": "3.1.0",
+		"repository": "nodable/val-parsers",
+		"sha": "561468f111a66df52cc0f1934642bb9fdd22a212",
+		"file": "nodable-entities.txt"
+	},
+	"react-remove-scroll-bar": {
+		"version": "2.3.8",
+		"repository": "theKashey/react-remove-scroll-bar",
+		"sha": "7c08c3990396ecefd90f99ff5d9a34f26f5b5616",
+		"file": "react-remove-scroll-bar.txt"
+	},
+	"lazy-val": {
+		"version": "1.0.5",
+		"file": "lazy-val.txt",
+		"source": "https://www.npmjs.com/package/lazy-val/v/1.0.5",
+		"note": "MIT declaration and author from the locked package; standard MIT terms reproduced because upstream supplies no license file."
+	},
+	"shadcn/ui": {
+		"repository": "shadcn-ui/ui",
+		"sha": "fad4d887a681dd49233e5ed01ee2c7a1513089a0",
+		"file": "shadcn-ui.txt",
+		"note": "Adapted UI components; upstream MIT license retained."
+	}
+}

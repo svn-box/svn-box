@@ -3,7 +3,7 @@
 	"version": "0.2.1",
 	"description": "仓盒 · 面向 macOS 的多工作副本 SVN 客户端",
 	"author": "svnbox",
-	"license": "MIT",
+	"license": "SEE LICENSE IN LICENSE",
 	"private": true,
 	"main": "out/main/index.js",
 	"scripts": {
@@ -15,10 +15,10 @@
 		"test": "vitest run tests",
 		"test:e2e": "npm run svn:build && npm run build && node scripts/e2e.mjs",
 		"format": "prettier --write src tests scripts electron.vite.config.ts",
-		"format:check": "prettier --check src tests scripts electron.vite.config.ts package.json tsconfig.json README.md README.zh-CN.md release-notes .github",
+		"format:check": "prettier --check src tests scripts electron.vite.config.ts package.json tsconfig.json README.md README.zh-CN.md THIRD_PARTY_NOTICES.md licenses/upstream/sources.json release-notes .github",
 		"screenshots:readme": "npm run svn:build && npm run build && node scripts/capture-readme.mjs",
-		"package:mac": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dmg zip --arm64 --publish never",
-		"package:dir": "npm run svn:build && npm run icons:build && npm run build && electron-builder --mac dir --arm64 --publish never",
+		"package:mac": "npm run svn:build && npm run licenses:build && npm run icons:build && npm run build && electron-builder --mac dmg zip --arm64 --publish never",
+		"package:dir": "npm run svn:build && npm run licenses:build && npm run icons:build && npm run build && electron-builder --mac dir --arm64 --publish never",
 		"svn:build": "node scripts/build-svn-runtime.mjs",
 		"icons:build": "node scripts/build-icons.mjs",
 		"themes:build": "node scripts/build-themes.mjs",
@@ -26,7 +26,8 @@
 		"release:mac": "node scripts/release-mac.ts",
 		"release:mac:preview": "node scripts/release-mac.ts --unsigned && node scripts/verify-installers.ts --unsigned",
 		"release:verify": "node scripts/verify-installers.ts",
-		"test:e2e:extended": "npm run svn:build && npm run build && node scripts/e2e-auth.mjs && node scripts/e2e-reliability.mjs && node scripts/e2e-app-updates.mjs"
+		"test:e2e:extended": "npm run svn:build && npm run build && node scripts/e2e-auth.mjs && node scripts/e2e-reliability.mjs && node scripts/e2e-app-updates.mjs",
+		"licenses:build": "node scripts/build-license-notices.mjs"
 	},
 	"dependencies": {
 		"@radix-ui/react-context-menu": "2.4.1",
@@ -86,6 +87,18 @@
 			"package.json"
 		],
 		"extraResources": [
+			{
+				"from": "LICENSE",
+				"to": "LICENSE"
+			},
+			{
+				"from": "THIRD_PARTY_NOTICES.md",
+				"to": "THIRD_PARTY_NOTICES.md"
+			},
+			{
+				"from": "THIRD_PARTY_LICENSES.txt",
+				"to": "THIRD_PARTY_LICENSES.txt"
+			},
 			{
 				"from": "resources/app-update.yml",
 				"to": "app-update.yml"

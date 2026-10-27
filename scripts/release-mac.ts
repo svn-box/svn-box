@@ -86,6 +86,11 @@ export async function verifyMacApp(app: string, version: string, teamId?: string
 		throw new Error('Application icon is invalid.');
 	}
 	await readFile(join(app, 'Contents/Resources/Assets.car'));
+	for (const name of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_LICENSES.txt', 'LICENSE.electron.txt', 'LICENSES.chromium.html']) {
+		if (!(await readFile(join(app, 'Contents/Resources', name))).length) {
+			throw new Error(`Missing application license or third-party notice: ${name}`);
+		}
+	}
 	const feed = JSON.parse(await readFile(join(app, 'Contents/Resources/app-update.yml'), 'utf8'));
 	for (const [key, value] of Object.entries(appUpdateRepository)) {
 		if (feed[key] !== value) {
@@ -170,7 +175,7 @@ async function main(): Promise<void> {
 			signing.keychain,
 		]);
 	}
-	for (const script of ['scripts/build-svn-runtime.mjs', 'scripts/build-icons.mjs', 'scripts/build-themes.mjs']) {
+	for (const script of ['scripts/build-svn-runtime.mjs', 'scripts/build-license-notices.mjs', 'scripts/build-icons.mjs', 'scripts/build-themes.mjs']) {
 		await runBuild([script]);
 	}
 	await runBuild(['node_modules/typescript/bin/tsc', '--noEmit', '-p', 'tsconfig.json']);
