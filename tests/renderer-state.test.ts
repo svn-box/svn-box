@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { onlineManager, type QueryClient } from '@tanstack/react-query';
+import { onlineManager, QueryObserver, type QueryClient } from '@tanstack/react-query';
 import { createWorkspaceStore } from '../src/renderer/src/state/workspace-store';
 import { createSvnQueries, mergeOperations, queryKeys } from '../src/renderer/src/queries/svn-queries';
 import { emptySession, type AppState, type FileStatus, type LogEntry, type Operation, type Snapshot } from '../src/shared/types';
@@ -131,6 +131,87 @@ describe('渲染进程会话一致性', () => {
 });
 
 describe('SVN Query 缓存与请求', () => {
+	it('自动扫描保留当前快照、复用在途请求，结束后清除静默状态', async () => {
+		let finish!: (value: Snapshot) => void;
+		const call = vi.fn(() => new Promise<Snapshot>((resolve) => (finish = resolve))) as ClientCall;
+		const queries = createSvnQueries(call);
+		clients.push(queries.client);
+		const old = snapshot('a');
+		queries.client.setQueryData(queryKeys.status('a'), old);
+		const activity: boolean[] = [];
+		const unsubscribe = queries.subscribeStatusActivity(() => activity.push(queries.isBackgroundScan('a')));
+		const first = queries.refreshStatusInBackground('a');
+		const second = queries.refreshStatusInBackground('a');
+		expect(queries.isBackgroundScan('a')).toBe(true);
+		expect(queries.isBackgroundScan('b')).toBe(false);
+		expect(queries.client.getQueryData(queryKeys.status('a'))).toEqual(old);
+		expect(call).toHaveBeenCalledTimes(1);
+		const next = snapshot('a', '2026-10-25T00:01:00.000Z');
+		finish(next);
+		await Promise.all([first, second]);
+		expect(queries.client.getQueryData(queryKeys.status('a'))).toEqual(next);
+		expect(activity).toEqual([true, false]);
+		unsubscribe();
+	});
+
+	it('手动刷新接管自动扫描，晚到的旧结果不会覆盖新快照或恢复静默状态', async () => {
+		const finishes: ((value: Snapshot) => void)[] = [];
+		const call = vi.fn(() => new Promise<Snapshot>((resolve) => finishes.push(resolve))) as ClientCall;
+		const queries = createSvnQueries(call);
+		clients.push(queries.client);
+		queries.client.setQueryData(queryKeys.status('a'), snapshot('a'));
+		const background = queries.refreshStatusInBackground('a').catch(() => undefined);
+		const manual = queries.refreshStatus('a');
+		await vi.waitFor(() => expect(finishes).toHaveLength(2));
+		expect(queries.isBackgroundScan('a')).toBe(false);
+		const next = snapshot('a', '2026-10-25T00:02:00.000Z');
+		finishes[1](next);
+		await manual;
+		finishes[0](snapshot('a', '2026-10-25T00:01:00.000Z'));
+		await background;
+		expect(queries.client.getQueryData(queryKeys.status('a'))).toEqual(next);
+		expect(queries.isBackgroundScan('a')).toBe(false);
+	});
+
+	it('自动扫描失败保留已显示的数据、报告错误，并结束静默状态', async () => {
+		const call = vi.fn(async () => {
+			throw new Error('工作副本不可读');
+		}) as ClientCall;
+		const failed = vi.fn();
+		const queries = createSvnQueries(call, undefined, failed);
+		clients.push(queries.client);
+		const old = snapshot('a');
+		queries.client.setQueryData(queryKeys.status('a'), old);
+		await expect(queries.refreshStatusInBackground('a')).rejects.toThrow('工作副本不可读');
+		expect(queries.isBackgroundScan('a')).toBe(false);
+		expect(queries.client.getQueryData(queryKeys.status('a'))).toEqual(old);
+		expect(failed).toHaveBeenCalledExactlyOnceWith('a', expect.any(Error));
+		expect(call).toHaveBeenCalledTimes(1);
+	});
+
+	it('同一文件跨扫描代次保留差异直到新内容就绪，切换文件或副本不借用旧预览', async () => {
+		let finish!: (value: { text: string }) => void;
+		const call = vi.fn(async () => ({ text: '原有差异' }));
+		const queries = createSvnQueries(call as ClientCall);
+		clients.push(queries.client);
+		const first = queries.diffOptions('a', 'file.ts', 'scan1');
+		await queries.client.fetchQuery(first);
+		const observer = new QueryObserver(queries.client, first);
+		const unsubscribe = observer.subscribe(() => {});
+		call.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+		observer.setOptions(queries.diffOptions('a', 'file.ts', 'scan2'));
+		expect(observer.getCurrentResult()).toMatchObject({ data: { text: '原有差异' }, isFetching: true, isPlaceholderData: true });
+		finish({ text: '外部修改后的差异' });
+		await vi.waitFor(() => expect(observer.getCurrentResult()).toMatchObject({ data: { text: '外部修改后的差异' }, isFetching: false, isPlaceholderData: false }));
+		observer.setOptions(queries.diffOptions('a', 'other.ts', 'scan2'));
+		expect(observer.getCurrentResult().data).toBeUndefined();
+		observer.setOptions(queries.diffOptions('b', 'file.ts', 'scan2'));
+		expect(observer.getCurrentResult().data).toBeUndefined();
+		observer.setOptions(queries.diffOptions('a', 'file.ts', '', 12));
+		expect(observer.getCurrentResult().data).toBeUndefined();
+		unsubscribe();
+	});
+
 	it('同一查询去重，副本/本地历史 Diff/扫描代次分别缓存', async () => {
 		const call = vi.fn(async (_method, input) => ({ text: JSON.stringify(input) })) as ClientCall;
 		const queries = createSvnQueries(call);

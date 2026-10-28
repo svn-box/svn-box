@@ -30,34 +30,39 @@ export function DiffView({
 }) {
 	const { t } = useTranslation();
 	const [split, setSplit] = useState(false);
-	const [rows, setRows] = useState<DiffRow[]>([]);
-	const [parsing, setParsing] = useState(false);
-	const [truncated, setTruncated] = useState(false);
+	const identity = JSON.stringify([title, revision, labels?.left, labels?.right, split]);
+	const [parsed, setParsed] = useState({ identity: '', rows: [] as DiffRow[], truncated: false });
+	const hasPreview = parsed.identity === identity;
+	const rows = hasPreview ? parsed.rows : [];
+	const truncated = hasPreview && parsed.truncated;
 	const [hunk, setHunk] = useState(-1);
 	const viewport = useRef<HTMLDivElement>(null);
 	const worker = useRef<Worker | null>(null);
-	const request = useRef(0);
+	const request = useRef({ id: 0, identity: '' });
+	const displayedIdentity = useRef('');
 	const virtual = useVirtualizer({ count: rows.length, getScrollElement: () => viewport.current, estimateSize: () => 22, overscan: 15 });
 	useEffect(() => {
 		const instance = new Worker(new URL('../diff.worker.ts', import.meta.url), { type: 'module' });
 		worker.current = instance;
 		instance.onmessage = (event) => {
-			if (event.data.id === request.current) {
-				setRows(event.data.rows);
-				setTruncated(event.data.truncated);
-				setParsing(false);
+			if (event.data.id === request.current.id) {
+				const samePreview = displayedIdentity.current === request.current.identity;
+				displayedIdentity.current = request.current.identity;
+				setParsed({ identity: request.current.identity, rows: event.data.rows, truncated: event.data.truncated });
 				setHunk(-1);
-				viewport.current?.scrollTo(0, 0);
+				if (!samePreview) {
+					viewport.current?.scrollTo(0, 0);
+				}
 			}
 		};
 		return () => instance.terminate();
 	}, []);
 	useEffect(() => {
 		if (worker.current) {
-			setParsing(true);
-			worker.current.postMessage({ id: ++request.current, text, split });
+			request.current = { id: request.current.id + 1, identity };
+			worker.current.postMessage({ id: request.current.id, text, split });
 		}
-	}, [text, split]);
+	}, [text, split, identity]);
 	const hunks = useMemo(() => rows.flatMap((row, index) => (row.type === 'hunk' ? [index] : [])), [rows]);
 
 	function jump(direction: number) {
@@ -101,7 +106,7 @@ export function DiffView({
 					)}
 				</div>
 			</div>
-			{loading || parsing ? (
+			{loading || (!!text && !hasPreview) ? (
 				<div className="empty">
 					<LoaderCircle className="spin" size={22} />
 					<span>{t('diffView.loadingDiff')}</span>

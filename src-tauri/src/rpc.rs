@@ -176,7 +176,7 @@ pub fn validate(method: &str, input: &Value) -> Result<()> {
     let valid = match method {
         "settings" => {
             input.get("theme").is_none_or(|v| {
-                ["light", "dark", "ocean", "mint", "iris", "sunset"]
+                ["light", "dark", "ocean", "mint", "iris", "sunset", "forest"]
                     .contains(&v.as_str().unwrap_or(""))
             }) && input
                 .get("language")

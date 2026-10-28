@@ -90,7 +90,8 @@ export function App() {
 	const wc = activeRepositoryId ? undefined : state?.workingCopies.find((copy) => copy.id === activeId);
 	const wcRepository = state?.repositories.find((repository) => repository.id === wc?.repositoryId);
 	const activeRepository = state?.repositories.find((repo) => repo.id === activeRepositoryId);
-	const snapshot = useStatus(activeId).data;
+	const status = useStatus(activeId);
+	const snapshot = status.data;
 	useForegroundRefresh(wc?.id);
 	const revertiblePaths = useMemo(() => {
 		const paths = new Set<string>();
@@ -108,8 +109,7 @@ export function App() {
 		}
 		return paths;
 	}, [snapshot]);
-	const statusQueries = useQueries({ queries: (state?.workingCopies ?? []).map((copy) => svnQueries.statusOptions(copy.id)) });
-	const loading = Object.fromEntries((state?.workingCopies ?? []).map((copy, index) => [copy.id, statusQueries[index].isFetching]));
+	useQueries({ queries: (state?.workingCopies ?? []).map((copy) => svnQueries.statusOptions(copy.id)) });
 	const preparingUpdate = useWorkspaceStore((store) => !!(activeId && store.updateIntents[activeId]?.preparing));
 	const updating = operations.some((operation) => operation.wcId === activeId && operationAction(operation) === 'update' && ['waiting', 'running'].includes(operation.state));
 	const busyWrite = preparingUpdate || operations.some((operation) => operation.wcId === activeId && ['waiting', 'running'].includes(operation.state));
@@ -532,10 +532,10 @@ export function App() {
 								size="icon"
 								aria-label={t('common.refreshLocalStatus')}
 								title={t('workspace.refreshLocalStatusR')}
-								disabled={!!loading[wc.id]}
+								disabled={status.refreshing}
 								onClick={() => void refresh(wc.id, false, true)}
 							>
-								<RefreshCw className={loading[wc.id] ? 'spin' : ''} />
+								<RefreshCw className={status.refreshing ? 'spin' : ''} />
 							</Button>
 							<Button variant="outline" disabled={busyWrite || reviewing} aria-busy={preparingUpdate || updating || undefined} onClick={() => void updateCopy()}>
 								{preparingUpdate || updating ? <LoaderCircle className="spin" /> : <ArrowDownToLine />}

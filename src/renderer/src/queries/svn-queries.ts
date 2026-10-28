@@ -10,6 +10,10 @@ export const queryKeys = {
 
 type OperationVersion = Pick<Operation, 'state' | 'sequence'>;
 
+function samePreview(previous: readonly unknown[] | undefined, current: readonly unknown[], generation: number): boolean {
+	return previous?.length === current.length && previous.every((part, index) => index === generation || part === current[index]);
+}
+
 function operationRegresses(next: OperationVersion, old: OperationVersion): boolean {
 	return (!isOperationActive(old) && isOperationActive(next)) || (old.state === 'running' && next.state === 'waiting');
 }
@@ -49,6 +53,18 @@ export function mergeOperations(incoming: Operation[], existing: Operation[] = [
 export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapshot) => void = () => {}, onScanError: (wcId: string, error: unknown) => void = () => {}) {
 	const clearedOperations = new Set<string>();
 	const operationVersions = new Map<string, OperationVersion>();
+	const backgroundScans = new Map<string, object>();
+	const activityListeners = new Set<() => void>();
+
+	function setBackgroundScan(wcId: string, token?: object): void {
+		if (token) {
+			backgroundScans.set(wcId, token);
+		} else if (!backgroundScans.delete(wcId)) {
+			return;
+		}
+		activityListeners.forEach((listener) => listener());
+	}
+
 	const retained = (operations: Operation[] = []) => operations.filter((operation) => !clearedOperations.has(operation.id));
 	const client = new QueryClient({
 		defaultOptions: {
@@ -88,21 +104,24 @@ export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapsh
 			meta: { wcId, kind: 'status' },
 		});
 
-	const diffOptions = (wcId: string, path: string, scan = '', revision?: number, connectionVersion = 0) =>
-		queryOptions({
-			queryKey: [
-				...queryKeys.workingCopy(wcId),
-				'diff',
-				revision === undefined ? 'local' : 'history',
-				path,
-				revision ?? null,
-				revision === undefined ? scan : '',
-				revision === undefined ? 0 : connectionVersion,
-			] as const,
+	const diffOptions = (wcId: string, path: string, scan = '', revision?: number, connectionVersion = 0) => {
+		const queryKey = [
+			...queryKeys.workingCopy(wcId),
+			'diff',
+			revision === undefined ? 'local' : 'history',
+			path,
+			revision ?? null,
+			revision === undefined ? scan : '',
+			revision === undefined ? 0 : connectionVersion,
+		] as const;
+		return queryOptions({
+			queryKey,
 			queryFn: ({ signal }) => call('diff', { wcId, path, revision }, { signal }),
+			placeholderData: (previous, query) => (samePreview(query?.queryKey, queryKey, 6) ? previous : undefined),
 			gcTime: revision === undefined ? 60_000 : 5 * 60_000,
 			meta: { wcId, kind: 'diff' },
 		});
+	};
 
 	const rangeDiffOptions = (wcId: string, path: string, range: RevisionRange, scan = '') =>
 		queryOptions({
@@ -128,19 +147,25 @@ export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapsh
 			meta: { wcId, kind: 'merge' },
 		});
 
-	const infoOptions = (wcId: string, path: string, scan = '') =>
-		queryOptions({
-			queryKey: [...queryKeys.workingCopy(wcId), 'info', path, scan],
+	const infoOptions = (wcId: string, path: string, scan = '') => {
+		const queryKey = [...queryKeys.workingCopy(wcId), 'info', path, scan] as const;
+		return queryOptions({
+			queryKey,
 			queryFn: ({ signal }) => call('info', { wcId, path }, { signal }),
+			placeholderData: (previous, query) => (samePreview(query?.queryKey, queryKey, 4) ? previous : undefined),
 			meta: { wcId, kind: 'info' },
 		});
+	};
 
-	const propertyOptions = (wcId: string, path: string, scan = '') =>
-		queryOptions({
-			queryKey: [...queryKeys.workingCopy(wcId), 'properties', path, scan],
+	const propertyOptions = (wcId: string, path: string, scan = '') => {
+		const queryKey = [...queryKeys.workingCopy(wcId), 'properties', path, scan] as const;
+		return queryOptions({
+			queryKey,
 			queryFn: ({ signal }) => call('properties', { wcId, path }, { signal }),
+			placeholderData: (previous, query) => (samePreview(query?.queryKey, queryKey, 4) ? previous : undefined),
 			meta: { wcId, kind: 'properties' },
 		});
+	};
 
 	const historyOptions = (wcId: string, path: string, connectionVersion = 0) =>
 		infiniteQueryOptions({
@@ -176,6 +201,13 @@ export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapsh
 		historyOptions,
 		listOptions,
 		operationOptions,
+		isBackgroundScan: (wcId: string) => backgroundScans.has(wcId),
+		subscribeStatusActivity(listener: () => void) {
+			activityListeners.add(listener);
+			return () => {
+				activityListeners.delete(listener);
+			};
+		},
 		acceptOperation(operation: Operation): Operation | undefined {
 			if (clearedOperations.has(operation.id)) {
 				return;
@@ -204,9 +236,25 @@ export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapsh
 			return result;
 		},
 		async refreshStatus(wcId: string, remote = false) {
+			setBackgroundScan(wcId);
 			const options = statusOptions(wcId, remote);
 			await client.cancelQueries({ queryKey: options.queryKey, exact: true });
 			return client.fetchQuery({ ...options, staleTime: 0 });
+		},
+		async refreshStatusInBackground(wcId: string) {
+			const options = { ...statusOptions(wcId), staleTime: 0 };
+			if (!client.getQueryData(options.queryKey) || client.getQueryState(options.queryKey)?.fetchStatus === 'fetching') {
+				return client.fetchQuery(options);
+			}
+			const token = {};
+			setBackgroundScan(wcId, token);
+			try {
+				return await client.fetchQuery(options);
+			} finally {
+				if (backgroundScans.get(wcId) === token) {
+					setBackgroundScan(wcId);
+				}
+			}
 		},
 		async verifyHistory(wcId: string) {
 			const filter = { queryKey: [...queryKeys.workingCopy(wcId), 'history'] };
@@ -214,6 +262,7 @@ export function createSvnQueries(call: ClientCall, onSnapshot: (snapshot: Snapsh
 			await client.invalidateQueries(filter);
 		},
 		async invalidateWorkingCopy(wcId: string, history: boolean) {
+			setBackgroundScan(wcId);
 			const filter = { queryKey: queryKeys.workingCopy(wcId), predicate: (query: { meta?: Record<string, unknown> }) => history || query.meta?.kind !== 'history' };
 			await client.cancelQueries(filter);
 			await client.invalidateQueries({ ...filter, refetchType: 'none' });

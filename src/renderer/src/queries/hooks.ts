@@ -1,12 +1,14 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import type { Operation } from '../../../shared/types';
 import { useWorkspaceStore } from '../state/workspace';
 import { errorText } from '../lib/api';
 import { svnQueries } from './runtime';
 
 export function useStatus(wcId?: string, enabled = true) {
-	return useQuery({ ...svnQueries.statusOptions(wcId ?? ''), enabled: !!wcId && enabled });
+	const background = useSyncExternalStore(svnQueries.subscribeStatusActivity, () => !!wcId && svnQueries.isBackgroundScan(wcId));
+	const query = useQuery({ ...svnQueries.statusOptions(wcId ?? ''), enabled: !!wcId && enabled });
+	return { ...query, refreshing: query.isFetching && (!background || !query.data) };
 }
 
 export function useHistory(wcId: string | undefined, path: string, enabled = true) {
@@ -32,10 +34,12 @@ export function useDiff(wcId: string | undefined, path: string, scan = '', revis
 	const version = useWorkspaceStore((state) => state.connectionVersion);
 	const options = svnQueries.diffOptions(wcId ?? '', path, scan, revision, version);
 	const query = useQuery({ ...options, enabled: !!wcId && !!path && enabled });
+	const fetching = enabled && !!wcId && !!path && query.isFetching;
 	return {
 		text: enabled ? (query.data?.text ?? '') : '',
 		unsupported: enabled ? (query.data?.unsupported ?? '') : '',
-		loading: enabled && !!wcId && !!path && query.isFetching,
+		loading: fetching && !query.data,
+		fetching,
 		error: enabled && query.error ? errorText(query.error) : '',
 		queryKey: options.queryKey,
 		refetch: query.refetch,
@@ -50,7 +54,7 @@ export function useFileInfo(wcId: string | undefined, path: string, scan = '', e
 	return {
 		info: active ? info.data : undefined,
 		properties: active ? properties.data : undefined,
-		loading: active && (info.isFetching || properties.isFetching),
+		loading: active && ((info.isFetching && !info.data) || (properties.isFetching && !properties.data)),
 		error: active && (info.error || properties.error) ? errorText(info.error ?? properties.error) : '',
 	};
 }

@@ -1,4 +1,4 @@
-export const themeIds = ['light', 'dark', 'ocean', 'mint', 'iris', 'sunset'] as const;
+export const themeIds = ['light', 'dark', 'ocean', 'mint', 'iris', 'sunset', 'forest'] as const;
 export type Theme = (typeof themeIds)[number];
 
 const white = {
@@ -66,6 +66,40 @@ const graphite: ThemeColors = {
 	'menu-surface': '#2e333c',
 	'menu-border': '#76859a',
 	'menu-shadow': '0 16px 44px #070c1570, 0 3px 10px #070c1545',
+};
+
+const forest: ThemeColors = {
+	...graphite,
+	bg: '#1f1f1f',
+	canvas: '#282828',
+	sidebar: '#2b3032',
+	chrome: '#292929',
+	surface: '#242424',
+	raised: '#393939',
+	text: '#eeeeee',
+	muted: '#bcbcbc',
+	border: '#414141',
+	hover: '#363636',
+	selected: '#206b2c',
+	accent: '#a0d58f',
+	'accent-strong': '#287c35',
+	'accent-soft': '#294631',
+	'on-accent': '#ffffff',
+	danger: '#f1a4af',
+	green: '#9bd397',
+	warning: '#e7cb7c',
+	input: '#202020',
+	'border-input': '#8e9693',
+	'diff-added': '#293e2d',
+	'diff-deleted': '#462e33',
+	'menu-surface': '#2d2d2d',
+	'menu-border': '#777777',
+	'shadow-control': '0 1px 2px #00000038',
+	shadow: '0 20px 70px #00000070, 0 3px 12px #00000040',
+	scrim: '#00000070',
+	'menu-shadow': '0 16px 44px #00000070, 0 3px 10px #00000045',
+	'file-paper-border': '#a5aaa7',
+	'file-fold': '#dce3de',
 };
 
 const oceanNavigation: ThemeColors = {
@@ -278,6 +312,12 @@ export const themes: readonly ThemeDefinition[] = [
 			'menu-border': '#c2aea0',
 		},
 		navigation: { scheme: 'dark', colors: coralNavigation },
+	},
+	{
+		id: 'forest',
+		scheme: 'dark',
+		colors: forest,
+		navigation: { scheme: 'dark', colors: { ...forest, bg: '#272b2d', selected: '#454d4e', 'accent-soft': '#454d4e' } },
 	},
 ];
 

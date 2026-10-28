@@ -24,8 +24,7 @@ export function useForegroundRefresh(wcId?: string): void {
 					refreshedAt: id ? (client.getQueryState(queryKeys.status(id))?.dataUpdatedAt ?? 0) : 0,
 				};
 			},
-			// Reuse an in-flight local scan instead of cancelling it like an explicit refresh.
-			(id) => client.fetchQuery({ ...svnQueries.statusOptions(id), staleTime: 0 }),
+			(id) => svnQueries.refreshStatusInBackground(id),
 		);
 		controller.current = refresh;
 		window.addEventListener('focus', refresh.request);

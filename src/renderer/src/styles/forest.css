@@ -1,0 +1,78 @@
+:root[data-theme='forest'] [data-repository-color='0'] {
+	--repository-color: #e2ca6b;
+}
+
+:root[data-theme='forest'] [data-repository-color='1'] {
+	--repository-color: #83ca92;
+}
+
+:root[data-theme='forest'] [data-repository-color='2'] {
+	--repository-color: #8cb7ee;
+}
+
+:root[data-theme='forest'] [data-repository-color='3'] {
+	--repository-color: #dca1c2;
+}
+
+:root[data-theme='forest'] [data-repository-color='4'] {
+	--repository-color: #e4b180;
+}
+
+:root[data-theme='forest'] .repository-name > svg,
+:root[data-theme='forest'] .nav-copy .project-icon {
+	color: var(--repository-color, var(--accent));
+}
+
+:root[data-theme='forest'] .nav-copy .nav-count {
+	color: #19221c;
+	background: var(--repository-color, var(--accent));
+}
+
+:root[data-theme='forest'] .status-badge.modified,
+:root[data-theme='forest'] .status-code.modified,
+:root[data-theme='forest'] .path-action.M {
+	color: #8cb7ee;
+}
+
+:root[data-theme='forest'] .status-badge.modified b {
+	color: #c1dbff;
+	background: #2b435f;
+	border-color: #527aa4;
+}
+
+:root[data-theme='forest'] .status-badge.unversioned {
+	color: #d5a4ed;
+}
+
+:root[data-theme='forest'] .status-badge.unversioned b {
+	color: #f3dbff;
+	background: #57366b;
+	border-color: #9468a7;
+}
+
+:root[data-theme='forest'] .file-row.selected {
+	--text: #f2fff0;
+	--muted: #e8f6e6;
+}
+
+:root[data-theme='forest'] .file-row.selected,
+:root[data-theme='forest'] .file-row.selected :is(.mono, .row-author, .status-badge, .moved-hint),
+:root[data-theme='forest'] .history-commit.selected :is(.revision, .history-commit-meta),
+:root[data-theme='forest'] .history-changed-path.selected .path-action {
+	color: #f2fff0;
+}
+
+:root[data-theme='forest'] .file-row.selected .status-badge b {
+	color: #19221c;
+	background: #c6e9c0;
+}
+
+:root[data-theme='forest'] .diff-line.add,
+:root[data-theme='forest'] .diff-line .inserted {
+	background: var(--diff-added);
+}
+
+:root[data-theme='forest'] .diff-line.delete,
+:root[data-theme='forest'] .diff-line .removed {
+	background: var(--diff-deleted);
+}

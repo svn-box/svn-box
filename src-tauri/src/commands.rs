@@ -133,7 +133,7 @@ pub async fn svnbox_call(
 pub fn apply_theme(app: &AppHandle, backend: &Backend) {
     let state = backend.state();
     let theme = s(&state["settings"], "theme");
-    let dark = ["dark", "iris"].contains(&theme);
+    let dark = ["dark", "iris", "forest"].contains(&theme);
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_theme(Some(if dark {
             tauri::Theme::Dark

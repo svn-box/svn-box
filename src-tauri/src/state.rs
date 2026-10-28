@@ -83,7 +83,7 @@ impl Backend {
         if !["zh-CN", "en"].contains(&s(&store["settings"], "language")) {
             store["settings"]["language"] = json!("zh-CN");
         }
-        if !["light", "dark", "ocean", "mint", "iris", "sunset"]
+        if !["light", "dark", "ocean", "mint", "iris", "sunset", "forest"]
             .contains(&s(&store["settings"], "theme"))
         {
             store["settings"]["theme"] = json!("light");

@@ -416,6 +416,10 @@ The UI controls in src/renderer/src/components/ui/ adapt shadcn/ui patterns. Its
 
 界面控件保留 shadcn/ui 的 MIT 许可，Lucide 保留 ISC 与源自 Feather 部分的 MIT 声明。未随 npm 包附带的许可由已核对的上游文本补齐，来源记录在 sources.json 中。
 
+File and folder icons and associations in src/renderer/src/assets/file-icons/symbols/ come from [Symbols](https://github.com/miguelsolorio/vscode-symbols/tree/2c95b15b0a8ef95ac62855e3784a6024ee6e5d2e), Copyright (c) 2020-22 Miguel Solorio. Its original [MIT license](resources/licenses/upstream/symbols-icons.txt) is retained. SVG artwork is unmodified; association JSON is formatted, and svnbox supplies the resolver and symbolic-link overlay composition.
+
+文件、文件夹图标及关联规则来自 Symbols，保留 Miguel Solorio 的原始著作权及 MIT 许可全文。SVG 图形保持原样，关联 JSON 仅调整格式，仓盒提供文件类型解析及符号链接叠层组合。
+
 svnbox's original code, documentation and artwork use the root [LICENSE](LICENSE). The Electron SVNBox project supplies the original frontend and artwork; the Tauri Diffolio project is the native migration reference. No third-party project endorses this application. External SVN and merge tools selected by the user retain their own licenses and are not redistributed by this project.
 
 仓盒原创代码、文档与图形适用根目录 LICENSE。原有界面与图形来自 Electron 版 SVNBox，原生迁移参考 Tauri 版 Diffolio。用户自行指定的外部 SVN 或合并工具由各自提供方授权，本项目不重新分发。

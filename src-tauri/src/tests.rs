@@ -751,6 +751,22 @@ fn legacy_import_preserves_the_source_and_refuses_to_overwrite_new_data() {
 }
 
 #[test]
+fn forest_appearance_is_accepted_and_survives_a_restart() {
+    let root = tempfile::tempdir().unwrap();
+    let load =
+        || Backend::load(root.path().join("data"), "/usr/bin/false".into(), |_, _| {}).unwrap();
+    let backend = load();
+    let input = json!({"theme": "forest"});
+    validate("settings", &input).unwrap();
+    backend
+        .call("settings", &input, &Context::default())
+        .unwrap();
+    assert_eq!(backend.state()["settings"]["theme"], "forest");
+    drop(backend);
+    assert_eq!(load().state()["settings"]["theme"], "forest");
+}
+
+#[test]
 fn authenticated_network_checkout_uses_stdin_password_and_scoped_credentials() {
     struct Server(std::process::Child);
     impl Drop for Server {

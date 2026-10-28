@@ -750,6 +750,10 @@
 		"sunset": {
 			"label": "橙色",
 			"description": "炭灰 · 活力橙"
+		},
+		"forest": {
+			"label": "经典绿",
+			"description": "中性深灰 · 清晰绿"
 		}
 	},
 	"remoteTree": {

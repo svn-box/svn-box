@@ -28,7 +28,7 @@ The app interface supports **English and Simplified Chinese**, with instant swit
 - **SVN operations** — update, add, rename, delete, ignore, discard local changes, and clean up working copies. Inspect conflicts and open an external comparison or merge tool.
 - **Connection credentials** — save encrypted credentials for a connection or repository path and share them across matching child URLs.
 - **Operation logs** — inspect progress and command output, cancel running tasks, filter or copy logs, and clear completed records.
-- **Desktop controls** — keyboard navigation, context menus, Finder and Terminal actions, and six appearance themes.
+- **Desktop controls** — keyboard navigation, context menus, Finder and Terminal actions, and seven appearance themes.
 - **Bundled SVN** — use the included Subversion client or choose a local executable in Settings.
 
 ## Screenshots
@@ -69,9 +69,9 @@ Keep remote paths alongside their local working copies. Browse a repository and 
 <details>
 <summary>Make the workspace yours</summary>
 
-Choose White, Graphite, Navy, Teal, Violet, or Orange in Settings. Appearance changes apply immediately.
+Choose White, Graphite, Navy, Teal, Violet, Orange, or Classic Green in Settings. Appearance changes apply immediately.
 
-![svnbox appearance settings with six workspace themes](resources/screenshots/appearance.png)
+![svnbox appearance settings](resources/screenshots/appearance.png)
 
 </details>
 

@@ -88,7 +88,10 @@ export function WorkspaceNavigation({
 		return (
 			<ContextMenu key={copy.id}>
 				<ContextMenuTrigger asChild>
-					<div className={`nav-copy ${shortcut ? 'shortcut' : ''} ${!activeRepositoryId && copy.id === activeId ? 'active' : ''}`}>
+					<div
+						className={`nav-copy ${shortcut ? 'shortcut' : ''} ${!activeRepositoryId && copy.id === activeId ? 'active' : ''}`}
+						data-repository-color={state.repositories.findIndex((repository) => repository.id === copy.repositoryId) % 5}
+					>
 						<button
 							className="nav-copy-main"
 							aria-label={t('workspaceNavigation.localWorkingCopy', {
@@ -303,7 +306,7 @@ export function WorkspaceNavigation({
 								const key = `${group.id}:${repo.id}`;
 								const expanded = query || !collapsed.includes(key);
 								return (
-									<section className="repository-node" key={repo.id}>
+									<section className="repository-node" key={repo.id} data-repository-color={state.repositories.indexOf(repo) % 5}>
 										<ContextMenu>
 											<ContextMenuTrigger asChild>
 												<div className={`repository-row ${activeRepositoryId === repo.id && (!activeUrl || activeUrl === repo.rootUrl) ? 'active' : ''}`}>

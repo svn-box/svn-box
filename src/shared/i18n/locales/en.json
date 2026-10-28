@@ -784,6 +784,10 @@
 		"sunset": {
 			"label": "Orange",
 			"description": "Charcoal · Vivid orange"
+		},
+		"forest": {
+			"label": "Classic Green",
+			"description": "Neutral charcoal · Clear green"
 		}
 	},
 	"remoteTree": {

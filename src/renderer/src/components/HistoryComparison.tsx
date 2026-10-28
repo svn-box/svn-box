@@ -36,7 +36,7 @@ export function HistoryComparison({
 				<Button variant="outline" size="sm" onClick={onVersions}>
 					{t(wholeCommit ? 'fileVersions.rangeAction' : 'fileVersions.showVersions')}
 				</Button>
-				{diff.loading ? (
+				{diff.fetching ? (
 					<Button
 						variant="ghost"
 						size="sm"

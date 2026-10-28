@@ -109,7 +109,7 @@ export function WorkspaceStatus({ wc }: { wc: WorkingCopy }) {
 			</span>
 			<span className="scan-time" title={status.error ? errorText(status.error) : fmtDate(snapshot?.scannedAt ?? wc.lastScan)}>
 				<span className={`local-dot ${status.error ? 'bad' : ''}`} />
-				{status.isFetching
+				{status.refreshing
 					? t('workspaceToolbar.scanning')
 					: status.error
 						? t('workspaceToolbar.localScanFailed')
