@@ -6,3 +6,7 @@
 - Order class members as fields, constructors, public methods, then private methods. Keep related functions together and preserve dependency order and the execution order of React Hooks.
 - Prefer `?.`, `??`, and `?:` when they are clear and semantically equivalent, preserving the meaning of `0`, `false`, and empty strings.
 - Keep comments concise, explaining intent and boundary conditions only where needed.
+
+# Releases
+
+- After successfully pushing a release tag and triggering its workflow, report the version and workflow URL as triggered, then end the turn while the remote job continues. Wait for remote completion or monitor its progress only when the user explicitly asks.

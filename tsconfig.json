@@ -15,8 +15,8 @@
 		"noEmit": true,
 		"types": ["node", "vite/client"],
 		"paths": {
-			"@/*": ["./src/renderer/src/*"]
-		}
+			"@/*": ["./src/renderer/src/*"],
+		},
 	},
-	"include": ["src", "tests", "scripts/**/*.ts", "electron.vite.config.ts"]
+	"include": ["src", "tests", "scripts/**/*.ts", "electron.vite.config.ts"],
 }
