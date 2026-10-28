@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { PNG } from 'pngjs';
 import { createHash } from 'node:crypto';
 import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -94,6 +95,9 @@ try {
 		throw new Error('actool 未生成有效的兼容 ICNS');
 	}
 	await copyFile(join(output, 'Icon.icns'), join(resources, 'icon.icns'));
+	await copyFile(join(output, 'Assets.car'), join(resources, 'Assets.car'));
+	await mkdir(join(root, 'src-tauri/icons'), { recursive: true });
+	await writeFile(join(root, 'src-tauri/icons/icon.png'), PNG.sync.write(PNG.sync.read(await readFile(join(resources, 'icon.png'))), { bitDepth: 8 }));
 	await writeFile(join(previews, 'actool.log'), compilation.stdout + compilation.stderr);
 	await writeFile(
 		join(previews, 'source.json'),

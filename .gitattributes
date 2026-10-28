@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.png binary
+*.icns binary
+*.car binary
+*.dylib binary
+resources/licenses/** -text -whitespace
+resources/licenses/**/*.crate binary

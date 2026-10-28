@@ -9,7 +9,7 @@
     <a href="#界面预览">界面预览</a> ·
     <a href="https://github.com/svn-box/svn-box/issues">反馈问题</a>
   </p>
-  <p><sub>v0.2.1 · macOS 13+ · Apple Silicon（arm64）</sub></p>
+  <p><sub>v0.4.0 · macOS 13.3+ · Apple Silicon（arm64）</sub></p>
 </div>
 
 仓盒是一款面向 macOS 的 Subversion 图形客户端。在同一个桌面工作区中管理多个项目，切换工作副本、审阅变更、选择文件提交和查询历史，并保留各个项目的工作上下文。
@@ -121,7 +121,7 @@ FileMerge 需要安装 Xcode。配置其他工具时，会打开来源与输出�
 
 从 **仓盒 → 检查更新**，或 **设置 → 应用更新** 检查新版本。检查不会自动下载；选择下载后，再按需“重启并安装”。安装前须先完成正在进行的 SVN 操作，提交草稿会在重启前保存。
 
-更新来自本仓库的 GitHub 正式发布版本，自动安装需要签名的 macOS 版本。尚无更新入口的旧版，需要先手动安装一次包含此功能的版本。
+更新来自本仓库的 GitHub 正式发布版本，Tauri 更新会验证仓盒独立的签名。Electron 用户切换到 Tauri 版时，需要先手动安装一次。
 
 ## 许可说明
 
@@ -129,4 +129,55 @@ FileMerge 需要安装 Xcode。配置其他工具时，会打开来源与输出�
 
 **未经另行书面授权，不得将软件或其衍生版本收费销售**，包括改名、换品牌、重新打包后售卖，以及付费下载、订阅和收费激活。可以对真实的安装、培训、技术支持或定制开发服务单独收费，但软件及其使用权须保持免费。分发时须保留协议和署名，修改版须注明来源与修改。
 
-由于包含销售限制，本项目属于**源码可用**项目，不属于 [OSI 定义](https://opensource.org/osd)的开源软件。新协议不追溯撤销旧许可证已授予的权利。第三方组件仍适用各自许可证，详见[第三方声明](THIRD_PARTY_NOTICES.md)及[许可证全文](THIRD_PARTY_LICENSES.txt)。
+由于包含销售限制，本项目属于**源码可用**项目，不属于 [OSI 定义](https://opensource.org/osd)的开源软件。新协议不追溯撤销旧许可证已授予的权利。第三方组件仍适用各自许可证，详见[第三方声明](THIRD_PARTY_NOTICES.md)及其中链接的许可证全文。
+
+## Tauri / Rust 开发
+
+这是基于 Electron SVNBox 0.2.1 独立创建的 Tauri 工程，原生迁移参考 Diffolio。保留现有 React 界面，SVN 执行、工作区存储、操作审阅、任务取消、备份、凭据、原生菜单和应用更新均迁移至 Rust。应用使用系统 WebKit，不内置 Electron、Chromium 或 Node.js 运行时；Node.js 仅用于前端开发和构建工具。
+
+环境要求：Apple Silicon、macOS 13.3+、Node.js 26、Rust 1.93+；现有图标需要 Xcode / Icon Composer 27。构建固定版本的 SVN 运行时需要 `scons` 和 `pkgconf`，原生集成测试还需要 Homebrew `subversion`。
+
+```sh
+npm ci
+npm run dev
+```
+
+开发服务仅监听 `127.0.0.1:1421`，正式构建将编译后的前端嵌入应用。
+
+```sh
+npm run build
+npm test
+npm run test:rust
+npm run test:native
+npm run format:check
+npm run check:rust
+npm run licenses:check
+npm run package:app
+npm run package:dmg
+```
+
+TS/TSX 沿用 `.prettierrc.json`，Rust 遵循 `src-tauri/rustfmt.toml`，通过 `cargo fmt` 和 Clippy 检查。项目源码统一采用无 BOM 的 UTF-8 编码和 LF 换行；第三方许可证原文保留其原始字节。
+
+### 已有 Electron 数据
+
+首次切换到 Tauri 版时手动安装。首次正常启动会把 Electron 配置中的工作区记录、草稿、操作历史、文件备份和合并会话复制到 `~/Library/Application Support/app.svnbox.desktop`，保留旧配置。已有 Tauri 工作区不会被覆盖。设置 `SVNBOX_DATA_DIR` 可使用独立配置目录，并跳过自动导入。
+
+凭据名称、用户名和作用范围会保留；Electron 加密密码文件作为备份保留，密码需要首次重新输入，随后由 macOS 钥匙串保存，服务名为 `app.svnbox.desktop.credentials`。密码不会写入工作区 JSON，也不通过命令行参数传递。
+
+### 打包与更新
+
+本地打包会在 `src-tauri/target/release/bundle/macos/仓盒.app` 生成临时签名的应用；预览产物位于 `release/preview/<version>/macos/arm64/`。正式发布构建使用 `npm run release:mac`，必须具备 Developer ID 与公证凭据，缺失时会失败，不会降级为临时签名。打包只生成本地产物，发布需要另行执行。
+
+Tauri 更新使用仓盒独立的公钥、签名的 `.app.tar.gz` 更新包和 `latest.json`。签名绑定包内容与声明版本，只接受递增的正式版本；下载由用户主动发起，存在 SVN 写操作时阻止安装。开发和原生验证构建禁用更新。
+
+迁移机器上的签名私钥单独保存在 `~/.config/svnbox/signing/tauri-updater.key`，不在工程内。其他构建机器可以设置 `TAURI_SIGNING_PRIVATE_KEY` 与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。后续发布需保留该私钥，不应提交或公开；没有私钥也可以构建不带更新产物的本地应用。
+
+Tauri 更新清单与 Electron 的 `latest-mac.yml` 不兼容，因此 Electron 用户需要手动安装一次 Tauri 版。同一仓库的 `main` 维护 Tauri 版，`electron-legacy` 保留 Electron 版。[迁移说明](docs/migration.md)记录了 Rust 模块分工及验证范围。
+
+### GitHub Actions 发布
+
+仓库沿用 `svn-box/svn-box` 及原有提交历史。发布说明位于 `docs/releases/<version>.md`，npm、Cargo 与 Tauri 的版本号必须一致。
+
+推送与版本号一致的标签（如 `v0.4.0`）会触发 `Release macOS arm64`：在 `xcode-27` 上构建、签名并公证 App 和 DMG，验证解包后的更新包与只读挂载的 DMG，再上传并核验草稿中的文件，最后发布 GitHub Release 与 `latest.json` 更新清单。已有版本不会被覆盖。
+
+工作流使用仓库的 `BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APPLE_ID`、`APPLE_TEAM_ID`、`APPLE_APP_SPECIFIC_PASSWORD` 和仓盒专用的 `TAURI_SIGNING_PRIVATE_KEY` Secrets。私钥口令如非空，另设 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。签名材料仅在构建任务中导入临时钥匙串，结束时清理并恢复原钥匙串搜索列表。

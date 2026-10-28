@@ -9,7 +9,7 @@
     <a href="#screenshots">Screenshots</a> ·
     <a href="https://github.com/svn-box/svn-box/issues">Report an issue</a>
   </p>
-  <p><sub>v0.2.1 · macOS 13+ · Apple Silicon (arm64)</sub></p>
+  <p><sub>v0.4.0 · macOS 13.3+ · Apple Silicon (arm64)</sub></p>
 </div>
 
 svnbox (仓盒) brings your Subversion projects into one desktop workspace. Switch between working copies, review changes, commit selected paths, and explore history without losing your place.
@@ -121,7 +121,7 @@ Drag the panel dividers to resize the workspace or collapse the inspector. Open 
 
 Choose **svnbox → Check for Updates** or open **Settings → App Updates**. Checking does not download anything. Choose Download, then Restart and Install when ready. Running SVN operations must finish before installation, and commit drafts are saved before restarting.
 
-Updates come from this repository's stable GitHub Releases. Automatic installation requires a signed macOS build. Older versions without this update entry need one manual installation of a version that includes it.
+Updates come from this repository's stable GitHub Releases. Tauri updates verify the application’s dedicated signature. Switching from Electron requires one manual installation of the Tauri version.
 
 ## License
 
@@ -129,4 +129,55 @@ svnbox uses the custom [svnbox Source-Available License 1.0](LICENSE). **Persona
 
 **Selling the software or its derivatives requires separate written permission**, including renaming, rebranding or repackaging it for sale, paid downloads, subscriptions and paid activation. Genuine installation, training, support and custom development services may be charged separately while the software and the right to use it remain free. Redistribution must retain the license and attribution; modified versions must identify their origin and changes.
 
-This sales restriction makes svnbox **source-available**, rather than open source under the [OSI definition](https://opensource.org/osd). The license does not retroactively revoke rights already granted under earlier licenses. Third-party components retain their own licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md) and the [full license texts](THIRD_PARTY_LICENSES.txt).
+This sales restriction makes svnbox **source-available**, rather than open source under the [OSI definition](https://opensource.org/osd). The license does not retroactively revoke rights already granted under earlier licenses. Third-party components retain their own licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md) and the license texts linked there.
+
+## Tauri / Rust development
+
+This is the independent Tauri migration of Electron SVNBox 0.2.1, with Diffolio's Tauri migration as a reference. The React interface remains familiar; Rust now handles SVN execution, workspace storage, operation review, cancellation, backups, credentials, native menus and application updates. The application uses system WebKit and bundles no Electron, Chromium or Node.js runtime. Node.js is used for frontend development and build tooling.
+
+Requirements: macOS 13.3 or later on Apple Silicon, Node.js 26, Rust 1.93 or later, and Xcode / Icon Composer 27 for the existing app icon. Building the pinned SVN runtime requires `scons` and `pkgconf`; native integration tests also use Homebrew `subversion`.
+
+```sh
+npm ci
+npm run dev
+```
+
+The Vite development server binds to `127.0.0.1:1421`. Production builds embed the compiled frontend.
+
+```sh
+npm run build
+npm test
+npm run test:rust
+npm run test:native
+npm run format:check
+npm run check:rust
+npm run licenses:check
+npm run package:app
+npm run package:dmg
+```
+
+TypeScript follows `.prettierrc.json`. Rust follows `src-tauri/rustfmt.toml` and is checked with `cargo fmt` and Clippy. Project source files use UTF-8 without a BOM and LF newlines. Original upstream license texts retain their original bytes.
+
+### Existing Electron data
+
+Install the first Tauri version manually. On its first normal launch, it copies workspace records, drafts, operation history, file backups and merge sessions from an existing Electron profile into `~/Library/Application Support/app.svnbox.desktop`, leaving the original profile in place. It never overwrites an existing Tauri workspace. Set `SVNBOX_DATA_DIR` to use an isolated profile and skip automatic import.
+
+Credential names, usernames and scopes are preserved. Electron's encrypted password file is retained as a backup; passwords must be entered once again and are then stored in macOS Keychain under `app.svnbox.desktop.credentials`. Passwords are not written to workspace JSON or command-line arguments.
+
+### Packaging and updates
+
+Local packaging creates an ad-hoc signed app under `src-tauri/target/release/bundle/macos/仓盒.app`. Preview artifacts are placed under `release/preview/<version>/macos/arm64/`. A public release uses `npm run release:mac`, requires Developer ID and notarization credentials, and never falls back to an ad-hoc build. Packaging produces local artifacts; publication is a separate action.
+
+Tauri updates use this application's dedicated public key, signed `.app.tar.gz` artifacts and `latest.json`. Signatures bind the archive to the announced version, stable versions must increase, downloads are manual, and active SVN writes block installation. Development and native verification builds disable updates.
+
+The signing private key stays outside the repository at `~/.config/svnbox/signing/tauri-updater.key` on the migration machine. Other builders may supply `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Preserve the private key for future releases; do not commit or publish it. A builder without the signing key can still create a local app without updater artifacts.
+
+The Tauri feed differs from Electron's `latest-mac.yml`; Electron clients need one manual installation of the Tauri release. The same repository keeps Tauri on `main` and Electron on `electron-legacy`. See [the migration notes](docs/migration.md) for the native module map and verification coverage.
+
+### GitHub Actions releases
+
+This project retains the history of `svn-box/svn-box`. Release notes live in `docs/releases/<version>.md`; npm, Cargo and Tauri versions must agree.
+
+Pushing the matching version tag, such as `v0.4.0`, triggers `Release macOS arm64`. The `xcode-27` build signs and notarizes the app and DMG, verifies the extracted updater archive and read-only mounted DMG, then uploads and checks a draft before publishing the GitHub Release and `latest.json`. Existing releases are never overwritten.
+
+The workflow uses repository Secrets `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and the dedicated SVNBox `TAURI_SIGNING_PRIVATE_KEY`. Set `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when the key has a nonempty password. Signing material is imported into a temporary keychain and removed after the build, restoring the original keychain search list.

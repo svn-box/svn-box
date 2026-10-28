@@ -1,0 +1,76 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "仓盒",
+	"version": "0.4.0",
+	"identifier": "app.svnbox.desktop",
+	"build": {
+		"beforeDevCommand": "npm run dev:web",
+		"devUrl": "http://127.0.0.1:1421",
+		"beforeBuildCommand": "npm run build",
+		"frontendDist": "../dist"
+	},
+	"app": {
+		"macOSPrivateApi": true,
+		"windows": [
+			{
+				"label": "main",
+				"title": "仓盒",
+				"width": 1360,
+				"height": 900,
+				"minWidth": 1000,
+				"minHeight": 680,
+				"center": true,
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true,
+				"trafficLightPosition": {
+					"x": 18,
+					"y": 30
+				},
+				"backgroundColor": "#f5f6f8",
+				"create": false
+			}
+		],
+		"security": {
+			"csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; frame-src 'none'",
+			"devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost ws://127.0.0.1:1421 http://127.0.0.1:1421; object-src 'none'; base-uri 'self'; frame-src 'none'",
+			"capabilities": [
+				{
+					"identifier": "main-window",
+					"windows": ["main"],
+					"permissions": ["core:event:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize"]
+				}
+			]
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": ["app", "dmg"],
+		"category": "DeveloperTool",
+		"shortDescription": "多工作副本 SVN 客户端",
+		"copyright": "Copyright © 2026 svnbox contributors",
+		"icon": ["../resources/icon.icns", "icons/icon.png"],
+		"resources": {
+			"../LICENSE": "LICENSE",
+			"../resources/svn/darwin-arm64/": "svn/",
+			"../resources/Assets.car": "Assets.car",
+			"../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+			"../resources/licenses/": "resources/licenses/",
+			"../resources/native-patches/": "resources/native-patches/"
+		},
+		"macOS": {
+			"minimumSystemVersion": "13.3",
+			"signingIdentity": "-",
+			"hardenedRuntime": true,
+			"infoPlist": "Info.plist"
+		},
+		"createUpdaterArtifacts": true
+	},
+	"plugins": {
+		"updater": {
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEyN0M2MzQ0RUNEQUM3ODIKUldTQ3g5cnNSR044b29nUVN5dTFQV2VWQlFFWUwzTUpteTUyQ3hsTS9PcjdRSWQxNlE2c3plcTEK",
+			"endpoints": ["https://github.com/svn-box/svn-box/releases/latest/download/latest.json"],
+			"requireSignedVersion": true,
+			"allowDowngrades": false
+		}
+	}
+}

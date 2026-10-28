@@ -49,7 +49,7 @@ https://github.com/svn-box/svn-box
 5. 第三方组件与既有授权
 
 第三方代码、运行库、图标及其他组件继续适用其各自的许可证，详见
-THIRD_PARTY_NOTICES.md、THIRD_PARTY_LICENSES.txt 及随软件附带的上游声明。
+THIRD_PARTY_NOTICES.md、resources/licenses/ 及随软件附带的上游声明。
 本协议的销售限制不适用于从本软件中独立使用或分发的第三方组件。
 
 本协议仅适用于随附本协议授予的权利，不追溯撤销任何接收者已经根据早期版本的
@@ -129,7 +129,7 @@ identify origin and preserve existing notices.
 5. Third-party components and prior grants
 
 Third-party code, runtimes, icons and other components retain their own licenses.
-See THIRD_PARTY_NOTICES.md, THIRD_PARTY_LICENSES.txt and accompanying upstream
+See THIRD_PARTY_NOTICES.md, resources/licenses/ and accompanying upstream
 notices. This License's sales restriction does not apply to third-party components
 used or distributed independently of the Software.
 
