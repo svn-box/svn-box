@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { readReleaseMetadata, verifyReleaseFiles } from './release-metadata.mjs';
 import { releaseCommand, verifySignature, verifySignedDmg } from './release-signing.mjs';
 import { verifyApplication } from './verify-package.mjs';
+import { verifyNativeRuntime } from './native-runtime-signing.mjs';
 
 const unsigned = process.argv.length === 3 && process.argv[2] === '--unsigned';
 assert.ok(process.argv.length === 2 || unsigned);
@@ -27,6 +28,7 @@ try {
 	if (!unsigned) {
 		assert.equal(manifest.teamId, process.env.APPLE_TEAM_ID, 'Apple team differs from the configured release team.');
 		await verifySignature(application, manifest.teamId, true);
+		await verifyNativeRuntime(join(application, 'Contents/Resources/svn'), manifest.teamId);
 		await releaseCommand('/usr/bin/xcrun', ['stapler', 'validate', application]);
 		await releaseCommand('/usr/sbin/spctl', ['--assess', '--type', 'execute', application]);
 	}
@@ -41,6 +43,7 @@ try {
 	assert.equal(await verifyApplication(mountedApp), digest, 'DMG and updater archive differ.');
 	if (!unsigned) {
 		await verifySignature(mountedApp, manifest.teamId, true);
+		await verifyNativeRuntime(join(mountedApp, 'Contents/Resources/svn'), manifest.teamId);
 		await releaseCommand('/usr/bin/xcrun', ['stapler', 'validate', mountedApp]);
 	}
 	console.log(

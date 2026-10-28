@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { basename } from 'node:path';
 import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
@@ -16,8 +17,21 @@ export function requireSigningEnvironment(env = process.env) {
 export async function releaseCommand(tool, arguments_, env = process.env) {
 	try {
 		return await execute(tool, arguments_, { env, maxBuffer: 32 * 1024 * 1024, timeout: 45 * 60 * 1000 });
-	} catch {
-		throw new Error(`${tool} failed during release verification. Arguments and output were withheld to protect credentials.`);
+	} catch (error) {
+		const values = [...Object.entries(process.env), ...Object.entries(env)]
+			.filter(([name, value]) => value && /TOKEN|PASSWORD|SECRET|PRIVATE_KEY|CERTIFICATE|APPLE_ID|APPLE_TEAM_ID/i.test(name))
+			.flatMap(([, value]) => [value, value.trim(), JSON.stringify(value).slice(1, -1)]);
+		for (let index = 0; index < arguments_.length - 1; index++) {
+			if (['--password', '--private-key', '--token'].includes(arguments_[index])) {
+				values.push(arguments_[index + 1]);
+			}
+		}
+		let output = [error.stdout, error.stderr].filter(Boolean).join('\n');
+		for (const value of [...new Set(values)].filter(Boolean).sort((left, right) => right.length - left.length)) {
+			output = output.replaceAll(value, '<REDACTED>');
+		}
+		const status = error.code ?? error.signal ?? 'unknown status';
+		throw new Error(`${basename(tool)} failed (${status}).\n${output.slice(-10000).trim()}`);
 	}
 }
 
@@ -63,6 +77,7 @@ export async function notarize(path, keychain, staplePath = path) {
 export async function verifySignature(path, teamId, runtime = false) {
 	const { stderr } = await releaseCommand('/usr/bin/codesign', ['--display', '--verbose=4', path]);
 	assert.ok(stderr.includes(`TeamIdentifier=${teamId}`) && stderr.includes('Authority=Developer ID Application:'), 'Unexpected Developer ID signature or Apple team.');
+	assert.match(stderr, /^Timestamp=.+/m, 'Developer ID signatures require a secure timestamp.');
 	assert.ok(!runtime || /flags=.*\(runtime\)/.test(stderr), 'Application must use Hardened Runtime.');
 	await releaseCommand('/usr/bin/codesign', ['--verify', '--strict', path]);
 }
