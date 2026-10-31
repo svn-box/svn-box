@@ -1,6 +1,6 @@
 {
 	"name": "svnbox",
-	"version": "0.4.1",
+	"version": "0.4.2",
 	"description": "仓盒 · 面向 macOS 的多工作副本 SVN 客户端",
 	"author": "svnbox",
 	"license": "SEE LICENSE IN LICENSE",

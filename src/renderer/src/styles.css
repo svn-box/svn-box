@@ -28,6 +28,32 @@ body {
 	background: var(--bg);
 	-webkit-font-smoothing: antialiased;
 	overflow: hidden;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+/* Keep desktop controls inert to text selection while retaining copyable content. */
+:where(
+	input,
+	textarea,
+	[contenteditable]:not([contenteditable='false']),
+	pre,
+	code,
+	.diff-scroll,
+	.logs-output-viewport,
+	.details-panel dd,
+	.detail-repository p,
+	.settings-detection p,
+	.authentication-identity > strong,
+	.authentication-path,
+	.workspace-error > span,
+	.error-text,
+	.inline-error,
+	[role='alert'],
+	.fatal p
+) {
+	-webkit-user-select: text;
+	user-select: text;
 }
 button,
 input,
@@ -38,6 +64,8 @@ select {
 button {
 	cursor: default;
 	color: inherit;
+	-webkit-user-select: none;
+	user-select: none;
 }
 button,
 a,
@@ -1058,6 +1086,7 @@ kbd {
 	min-width: 40px;
 	text-align: right;
 	padding: 0 9px 0 4px;
+	-webkit-user-select: none;
 	user-select: none;
 	font-size: 10px;
 	border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent);

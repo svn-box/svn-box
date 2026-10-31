@@ -5,6 +5,7 @@ export function resizePanel(event: ReactPointerEvent, kind: 'sidebar' | 'details
 	if (event.button !== 0) {
 		return;
 	}
+	event.preventDefault();
 	const start = kind === 'list' ? event.clientY : event.clientX;
 	const { sidebarWidth, detailsWidth, diffHeight } = workspaceStore.getState();
 	const container = event.currentTarget.parentElement;
