@@ -328,7 +328,7 @@ export function App() {
 		if (action === 'settings') {
 			setModal('settings');
 		} else if (action === 'app-update') {
-			updates.activate();
+			void updates.check();
 		} else if (action === 'add') {
 			void addWorkingCopy();
 		} else if (action === 'remote') {

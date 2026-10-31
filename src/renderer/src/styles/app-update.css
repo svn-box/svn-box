@@ -15,6 +15,10 @@
 	color: var(--on-accent);
 }
 
+.app-update-button[data-update-phase='error'] {
+	color: var(--danger);
+}
+
 .app-update-ring {
 	width: 16px;
 	height: 16px;
@@ -32,9 +36,10 @@
 .dialog-content.app-update-dialog {
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
+	gap: 28px;
 	width: min(440px, calc(100vw - 48px));
 	padding: 24px;
+	background: var(--raised);
 }
 
 .app-update-dialog:focus {
@@ -43,32 +48,34 @@
 
 .app-update-summary {
 	display: flex;
-	align-items: flex-start;
-	gap: 14px;
+	align-items: center;
+	gap: 16px;
 }
 
-.app-update-summary > svg {
-	width: 32px;
-	height: 32px;
+.app-update-icon {
+	width: 44px;
+	height: 44px;
 	flex-shrink: 0;
-	color: var(--accent);
+}
+
+.app-update-summary > div {
+	min-width: 0;
 }
 
 .app-update-summary h2 {
 	margin: 0;
-	font-size: 15px;
+	font-size: 16px;
 	font-weight: 600;
 	line-height: 1.5;
 }
 
-.app-update-summary p,
-.app-update-dialog > p {
+.app-update-summary .app-update-date {
+	display: flex;
+	align-items: center;
+	gap: 6px;
 	margin: 4px 0 0;
 	font-size: 12px;
-	line-height: 1.7;
-}
-
-.app-update-summary p {
+	line-height: 18px;
 	color: var(--muted);
 }
 
@@ -81,26 +88,57 @@
 }
 
 .app-update-error {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	margin: 0;
+	font-size: 12px;
+	line-height: 18px;
 	color: var(--danger);
 	overflow-wrap: anywhere;
 }
 
-.app-update-notes {
-	font-size: 12px;
-	color: var(--muted);
+.app-update-error > svg {
+	flex-shrink: 0;
+	margin-top: 2px;
 }
 
-.app-update-notes p {
-	max-height: 180px;
-	overflow: auto;
-	white-space: pre-wrap;
-	overflow-wrap: anywhere;
-	-webkit-user-select: text;
-	user-select: text;
+.app-update-hint {
+	margin: 0;
+	font-size: 12px;
+	line-height: 18px;
+	color: var(--muted);
 }
 
 .app-update-actions {
 	display: flex;
 	justify-content: flex-end;
 	gap: 8px;
+}
+
+.app-update-actions .button {
+	height: 34px;
+	min-width: 68px;
+	padding: 0 16px;
+	border-radius: 9px;
+	font-size: 13px;
+	box-shadow: none;
+}
+
+.app-update-actions .button-outline {
+	border-color: transparent;
+	background: var(--hover);
+}
+
+.app-update-actions .button-outline:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--hover) 85%, var(--text));
+}
+
+.app-update-actions .button-primary {
+	background: var(--text);
+	color: var(--raised);
+}
+
+.app-update-actions .button-primary:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--text) 88%, var(--raised));
 }

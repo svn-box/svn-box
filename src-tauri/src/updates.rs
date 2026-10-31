@@ -54,6 +54,7 @@ impl Session {
         self.state["phase"] = json!("checking");
         for key in [
             "version",
+            "publishedAt",
             "percent",
             "received",
             "total",
@@ -188,6 +189,9 @@ async fn check_and_download(app: &AppHandle, generation: u64) {
         session.available = Some(update.clone());
         session.state["phase"] = json!("downloading");
         session.state["version"] = json!(update.version);
+        if let Some(date) = update.date {
+            session.state["publishedAt"] = json!(date.unix_timestamp() * 1000);
+        }
         session.state["notes"] = json!(update
             .body
             .as_deref()

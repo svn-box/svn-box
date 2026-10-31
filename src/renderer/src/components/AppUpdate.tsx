@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, LoaderCircle, RefreshCw } from 'lucide-react';
+import { CalendarDays, CircleAlert, Download, LoaderCircle } from 'lucide-react';
+import appIcon from '../assets/app-icon.webp';
 import type { AppUpdateState } from '../../../shared/app-updates';
 import type { useAppUpdate } from '../queries/use-app-update';
 import { Button } from './ui/button';
@@ -30,12 +31,21 @@ function DownloadProgress({ state }: { state: AppUpdateState }) {
 export function AppUpdateButton({ updates }: { updates: Updates }) {
 	const { t } = useTranslation();
 	const { phase, percent } = updates.state;
-	if (!['downloading', 'verifying', 'downloaded', 'installing'].includes(phase)) {
+	if (!['downloading', 'verifying', 'downloaded', 'installing'].includes(phase) && !(phase === 'error' && updates.state.version)) {
 		return null;
 	}
 	const key = phase === 'downloading' && percent === undefined ? 'downloadingUnknown' : phase;
-	const label = t(`appUpdate.${key}`, { percent: Math.floor(percent ?? 0) });
-	const caption = phase === 'downloaded' ? 'readyButton' : phase === 'downloading' ? 'downloadingButton' : phase === 'verifying' ? 'verifyingButton' : 'installing';
+	const label = t(phase === 'error' ? 'appUpdate.retryHint' : `appUpdate.${key}`, { percent: Math.floor(percent ?? 0) });
+	const caption =
+		phase === 'downloaded'
+			? 'readyButton'
+			: phase === 'downloading'
+				? 'downloadingButton'
+				: phase === 'verifying'
+					? 'verifyingButton'
+					: phase === 'error'
+						? 'retryButton'
+						: 'installing';
 	return (
 		<Button
 			className="app-update-button"
@@ -50,6 +60,8 @@ export function AppUpdateButton({ updates }: { updates: Updates }) {
 				<DownloadProgress state={updates.state} />
 			) : phase === 'downloaded' ? (
 				<Download aria-hidden="true" />
+			) : phase === 'error' ? (
+				<CircleAlert aria-hidden="true" />
 			) : (
 				<LoaderCircle className="spin" aria-hidden="true" />
 			)}
@@ -59,17 +71,26 @@ export function AppUpdateButton({ updates }: { updates: Updates }) {
 }
 
 export function AppUpdateDialog({ updates, busy }: { updates: Updates; busy: boolean }) {
-	const { t } = useTranslation();
+	const { t, i18n } = useTranslation();
 	const dialog = useRef<HTMLDivElement>(null);
 	const { state } = updates;
 	const ready = state.phase === 'downloaded';
 	const downloading = state.phase === 'downloading';
 	const preparing = ['checking', 'verifying'].includes(state.phase);
 	const installing = updates.installing || state.phase === 'installing';
+	const failed = state.phase === 'error' || Boolean(updates.error);
+	const finished = state.phase === 'current' && !failed;
 	const key = downloading && state.percent === undefined ? 'downloadingUnknown' : state.phase;
-	const title = ready ? t('appUpdate.readyTitle', { version: state.version }) : t(`appUpdate.${key}`, { percent: Math.floor(state.percent ?? 0) });
-	const description = ready ? t('appUpdate.readyHint') : downloading ? t('appUpdate.backgroundHint') : t('appUpdate.checkHint');
+	const title = ready
+		? t('appUpdate.readyTitle', { version: state.version })
+		: failed
+			? t('appUpdate.error')
+			: t(`appUpdate.${key}`, { percent: Math.floor(state.percent ?? 0) });
 	const message = updates.error || (state.messageKey ? t(state.messageKey) : state.message);
+	const publishedAt = new Date(state.publishedAt ?? Number.NaN);
+	const publishedDate = Number.isNaN(publishedAt.getTime())
+		? undefined
+		: new Intl.DateTimeFormat(i18n.resolvedLanguage, { year: 'numeric', month: 'long', day: 'numeric' }).format(publishedAt);
 	return (
 		<Dialog open={updates.open} onOpenChange={(open) => !open && updates.close()}>
 			<DialogContent
@@ -83,13 +104,18 @@ export function AppUpdateDialog({ updates, busy }: { updates: Updates; busy: boo
 				}}
 			>
 				<header className="app-update-summary">
-					<RefreshCw aria-hidden="true" />
+					<img className="app-update-icon" src={appIcon} alt="" width={44} height={44} />
 					<div>
 						<DialogTitle>{title}</DialogTitle>
-						<DialogDescription>{description}</DialogDescription>
+						{publishedDate && (
+							<p className="app-update-date">
+								<CalendarDays size={13} aria-hidden="true" />
+								<time dateTime={publishedAt.toISOString()}>{publishedDate}</time>
+							</p>
+						)}
 					</div>
 				</header>
-				<p className="muted">{t('appUpdate.currentVersion', { version: state.currentVersion })}</p>
+				<DialogDescription className="sr-only">{t('appUpdate.currentVersion', { version: state.currentVersion })}</DialogDescription>
 				{downloading && (
 					<div className="app-update-download">
 						<DownloadProgress state={state} />
@@ -99,25 +125,15 @@ export function AppUpdateDialog({ updates, busy }: { updates: Updates; busy: boo
 					</div>
 				)}
 				{message && (
-					<p className={state.phase === 'disabled' ? 'muted' : 'app-update-error'} role={state.phase === 'disabled' ? 'status' : 'alert'}>
+					<p className={state.phase === 'disabled' ? 'app-update-hint' : 'app-update-error'} role={state.phase === 'disabled' ? 'status' : 'alert'}>
+						{state.phase !== 'disabled' && <CircleAlert size={15} aria-hidden="true" />}
 						{message}
 					</p>
 				)}
-				{ready && busy && <p className="muted">{t('updates.busy')}</p>}
-				{state.notes && (
-					<details className="app-update-notes">
-						<summary>{t('appUpdate.releaseNotes')}</summary>
-						<p>{state.notes}</p>
-					</details>
-				)}
+				{ready && busy && <p className="app-update-hint">{t('updates.busy')}</p>}
 				<footer className="app-update-actions">
-					{state.version && (
-						<Button variant="ghost" disabled={installing} onClick={() => void updates.release()}>
-							{t('appUpdate.releasePage')}
-						</Button>
-					)}
 					<Button variant="outline" disabled={installing} onClick={updates.close}>
-						{t('appUpdate.later')}
+						{t(finished || (!state.version && !preparing) ? 'common.close' : 'appUpdate.later')}
 					</Button>
 					{ready || installing ? (
 						<Button disabled={installing || busy} aria-busy={installing || undefined} onClick={() => void updates.install()}>
@@ -125,13 +141,13 @@ export function AppUpdateDialog({ updates, busy }: { updates: Updates; busy: boo
 						</Button>
 					) : downloading || preparing ? (
 						<Button variant="outline" onClick={() => void updates.cancel()}>
-							{t('appUpdate.cancel')}
+							{t(state.phase === 'checking' ? 'appUpdate.cancelCheck' : 'appUpdate.cancel')}
 						</Button>
-					) : (
+					) : !finished ? (
 						<Button disabled={state.phase === 'disabled'} onClick={() => void updates.check()}>
 							{t('appUpdate.retry')}
 						</Button>
-					)}
+					) : null}
 				</footer>
 			</DialogContent>
 		</Dialog>

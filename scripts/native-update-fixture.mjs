@@ -37,12 +37,20 @@ export async function createUpdateFixture(root) {
 	let base;
 	const server = createServer((request, response) => {
 		if (request.url === '/latest.json') {
-			if (checks++ === 0) {
-				setTimeout(() => response.writeHead(204).end(), 200);
+			const check = checks++;
+			if (check < 2) {
+				setTimeout(() => response.writeHead(check === 0 ? 204 : 503).end(), 200);
 				return;
 			}
 			response.writeHead(200, { 'Content-Type': 'application/json' });
-			response.end(JSON.stringify({ version, notes: 'Native updater regression fixture.', platforms: { 'darwin-aarch64': { url: `${base}/fixture`, signature } } }));
+			response.end(
+				JSON.stringify({
+					version,
+					pub_date: '2026-10-29T08:00:00Z',
+					notes: 'Native updater regression fixture.',
+					platforms: { 'darwin-aarch64': { url: `${base}/fixture`, signature } },
+				}),
+			);
 			return;
 		}
 		if (request.url !== '/fixture') {

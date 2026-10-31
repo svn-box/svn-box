@@ -7,9 +7,14 @@ import { workspaceStore } from '../state/workspace';
 
 const initial: AppUpdateState = { phase: 'idle', revision: -1, currentVersion: '' };
 
+function hasOtherDialog() {
+	return Boolean(document.querySelector('[role="dialog"]:not(.app-update-dialog), [role="alertdialog"]'));
+}
+
 export function useAppUpdate() {
 	const [state, setState] = useState(initial);
 	const [open, setOpen] = useState(false);
+	const [blocked, setBlocked] = useState(false);
 	const [error, setError] = useState('');
 	const [installing, setInstalling] = useState(false);
 	const current = useRef(initial);
@@ -21,11 +26,17 @@ export function useAppUpdate() {
 		const previous = current.current;
 		current.current = next;
 		setState(next);
-		if (next.phase !== previous.phase && ['downloaded', 'error'].includes(next.phase)) {
+		if (next.phase === 'downloaded' && next.phase !== previous.phase) {
 			setOpen(true);
 		}
 		if (next.phase === 'current' && previous.phase === 'checking') {
-			toast.success(translate('appUpdate.current'));
+			setOpen(false);
+			toast(translate('appUpdate.currentToast', { version: next.currentVersion }), {
+				id: 'app-update-current',
+				closeButton: false,
+				duration: 3000,
+				style: { width: 'max-content', maxWidth: '100%', minHeight: 0, padding: '10px 16px', left: 0, right: 0, marginInline: 'auto' },
+			});
 		}
 	}, []);
 	useEffect(() => {
@@ -45,6 +56,13 @@ export function useAppUpdate() {
 			unsubscribe();
 		};
 	}, [accept]);
+	useEffect(() => {
+		const update = () => setBlocked(hasOtherDialog());
+		const observer = new MutationObserver(update);
+		observer.observe(document.body, { childList: true });
+		update();
+		return () => observer.disconnect();
+	}, []);
 
 	async function run(action: AppUpdateAction) {
 		setError('');
@@ -56,17 +74,18 @@ export function useAppUpdate() {
 		}
 	}
 
-	function check() {
-		setOpen(false);
-		return run('check');
+	async function check() {
+		setError('');
+		setBlocked(hasOtherDialog());
+		setOpen(true);
+		if (current.current.phase !== 'downloaded') {
+			await run('check');
+		}
 	}
 
 	function activate() {
-		if (!error && ['idle', 'current', 'paused'].includes(current.current.phase)) {
-			void check();
-		} else {
-			setOpen(true);
-		}
+		setBlocked(hasOtherDialog());
+		setOpen(true);
 	}
 
 	async function install() {
@@ -96,7 +115,7 @@ export function useAppUpdate() {
 
 	return {
 		state,
-		open,
+		open: open && !blocked,
 		error,
 		installing,
 		activate,

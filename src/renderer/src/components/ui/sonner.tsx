@@ -12,10 +12,10 @@ export function Toaster() {
 	return (
 		<Sonner
 			theme={dark ? 'dark' : 'light'}
-			position="bottom-right"
+			position="top-center"
 			closeButton
 			visibleToasts={3}
-			offset={{ right: 20, bottom: 42 }}
+			offset={{ top: 'calc(var(--titlebar-height) + 12px)' }}
 			icons={{
 				success: <CircleCheck size={17} />,
 				error: <CircleAlert size={17} />,

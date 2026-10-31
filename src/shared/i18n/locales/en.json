@@ -859,6 +859,7 @@
 		"disabled": "App updates",
 		"checking": "Checking for updates…",
 		"current": "You're up to date",
+		"currentToast": "You're up to date · v{{version}}",
 		"available": "New version available",
 		"downloading": "Downloading update {{percent}}%",
 		"downloadingUnknown": "Downloading update…",
@@ -870,15 +871,15 @@
 		"restartUpdate": "Restart to update",
 		"progress": "App update download progress",
 		"readyTitle": "v{{version}} is ready",
-		"readyHint": "Restart to finish updating. Your workspace and commit drafts will be preserved.",
-		"backgroundHint": "Downloading in the background. Keep using svnbox; dismissing this prompt does not stop the download.",
-		"checkHint": "Check for stable releases when ready. New versions download in the background and install only after you confirm.",
 		"currentVersion": "Current version {{version}}",
 		"downloadSize": "{{received}} / {{total}} MB",
 		"releaseNotes": "What's new",
 		"releasePage": "Release page",
 		"later": "Later",
+		"cancelCheck": "Cancel check",
 		"cancel": "Cancel download",
+		"retryButton": "Retry",
+		"retryHint": "Update failed. View details and retry.",
 		"retry": "Check again"
 	}
 }

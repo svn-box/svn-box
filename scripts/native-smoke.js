@@ -55,20 +55,59 @@
 			updatePhases.add(next.phase);
 		});
 		await invoke('smoke_menu', { action: 'app-update' });
-		await waitFor(() => update.phase === 'checking');
+		await waitFor(() => update.phase === 'checking' && button('取消检查'));
 		assert(!document.querySelector('.app-update-button'), 'Checking from the menu keeps the update button hidden');
-		await waitFor(() => update.phase === 'current' && document.body.innerText.includes('已是最新版本'));
-		assert(!document.querySelector('.app-update-button'), 'An up-to-date result shows temporary feedback without a persistent button');
+		await waitFor(
+			() =>
+				update.phase === 'current' &&
+				!document.querySelector('[role="dialog"]') &&
+				document.querySelector('[data-sonner-toast]')?.textContent.includes(`已是最新版本 v${update.currentVersion}`),
+		);
+		assert(!document.querySelector('.app-update-button'), 'An up-to-date result does not leave a titlebar button');
+		const toaster = document.querySelector('[data-sonner-toaster]');
+		assert(toaster.dataset.xPosition === 'center' && toaster.dataset.yPosition === 'top', 'All toasts are positioned at the top center');
+		assert(!document.querySelector('.app-update-dialog'), 'An up-to-date result uses a compact version toast instead of an update dialog');
+		const currentToast = document.querySelector('[data-sonner-toast]');
+		await waitFor(() => Number(getComputedStyle(currentToast).opacity) >= 0.99);
+		const toastBounds = currentToast.getBoundingClientRect();
+		assert(
+			Math.abs(toastBounds.x + toastBounds.width / 2 - innerWidth / 2) < 2 && toastBounds.top >= document.querySelector('.titlebar').getBoundingClientRect().bottom,
+			'The compact toast is centered below the titlebar',
+		);
+		await invoke('smoke_snapshot', { name: 'update-current' });
+		await waitFor(() => !document.querySelector('[data-sonner-toast]'));
 		await invoke('smoke_menu', { action: 'app-update' });
+		await waitFor(() => update.phase === 'error' && button('重新检查'));
+		assert(update.messageKey === 'updates.checkFailed' && !update.version, 'A failed update check reports its cause without claiming a new version');
+		assert(
+			document.querySelector('.app-update-dialog [role="alert"]') && button('关闭') && !document.querySelector('.app-update-button'),
+			'Check failures show Close and Check again without a titlebar button',
+		);
+		await Promise.all(
+			document
+				.querySelector('.app-update-dialog')
+				.getAnimations({ subtree: true })
+				.map((animation) => animation.finished.catch(() => {})),
+		);
+		await invoke('smoke_snapshot', { name: 'update-error' });
+		button('重新检查').click();
 		await waitFor(() => update.phase === 'downloading');
 		assert(!document.querySelector('.settings-dialog'), 'The native update menu starts a background check without opening settings');
-		await waitFor(() => update.phase === 'error' && document.querySelector('.app-update-dialog'));
+		await waitFor(() => button('稍后'));
+		button('稍后').click();
+		await waitFor(() => !document.querySelector('[role="dialog"]'));
+		await waitFor(() => update.phase === 'error' && document.querySelector('.app-update-button')?.textContent.trim() === '重试');
 		assert(update.messageKey === 'updates.downloadFailed', 'Real signature verification rejects a modified update payload');
-		button('重新检查').click();
+		assert(!document.querySelector('[role="dialog"]'), 'Background download failures preserve a retry entry without reopening a dismissed prompt');
+		document.querySelector('.app-update-button').click();
+		await waitFor(() => document.querySelector('.app-update-dialog [role="alert"]') && button('重新检查'));
+		assert(document.querySelector('.app-update-dialog h2').textContent === '更新遇到问题', 'The retry entry opens the failure details in the update dialog');
+		button('稍后').click();
+		await waitFor(() => !document.querySelector('[role="dialog"]'));
+		await invoke('smoke_menu', { action: 'app-update' });
 		await waitFor(() => update.phase === 'downloading' && update.received > 65536);
 		await waitFor(() => document.querySelector('.app-update-button [role="progressbar"]'));
 		assert(!document.querySelector('.app-update-button [role="progressbar"]').hasAttribute('aria-valuenow'), 'Unknown download sizes show indeterminate progress');
-		document.querySelector('.app-update-button').click();
 		await waitFor(() => button('取消下载'));
 		button('取消下载').click();
 		await waitFor(() => update.phase === 'paused' && !document.querySelector('[role="dialog"]') && !document.querySelector('.app-update-button'));
@@ -79,21 +118,36 @@
 		const ring = document.querySelector('.app-update-button [role="progressbar"]');
 		assert(Number(ring.getAttribute('aria-valuenow')) > 0 && Number(ring.getAttribute('aria-valuenow')) < 100, 'The original update button shows real byte download progress');
 		assert(document.querySelector('.app-update-button').textContent.trim() === '下载更新', 'An available update shows its download action instead of a permanent check button');
-		await invoke('smoke_snapshot', { name: 'update-progress' });
-		document.querySelector('.app-update-button').click();
 		await waitFor(() => button('稍后'));
 		button('稍后').click();
 		await waitFor(() => !document.querySelector('[role="dialog"]'));
+		await invoke('smoke_snapshot', { name: 'update-progress' });
 		const received = update.received;
 		await invoke('smoke_menu', { action: 'settings' });
 		await waitFor(() => button('通用设置'));
 		assert(document.querySelectorAll('.settings-navigation button').length === 2, 'Settings only contains general and SVN tool preferences');
+		await waitFor(() => update.received > received);
+		assert(true, 'The background download continues while settings is open');
+		await waitFor(() => update.phase === 'downloaded');
+		assert(!document.querySelector('.app-update-dialog') && document.querySelector('.settings-dialog'), 'Ready prompts wait for the existing settings dialog to close');
 		button('关闭').click();
-		await waitFor(() => !document.querySelector('[role="dialog"]') && update.received > received);
-		assert(true, 'Closing the update prompt and settings leaves the background download running');
 		await waitFor(() => update.phase === 'downloaded' && button('重启以更新'));
 		assert(updatePhases.has('verifying') && update.percent === 100, 'A signed retry reaches ready only after verification');
+		assert(
+			update.publishedAt === Date.parse('2026-10-29T08:00:00Z') && document.querySelector('.app-update-date')?.textContent.includes('2026年10月29日'),
+			'The ready dialog shows the actual release date',
+		);
+		assert(
+			document.querySelectorAll('.app-update-actions button').length === 2 && document.querySelector('.app-update-icon').naturalWidth > 0,
+			'The ready dialog uses the app icon with Later and Restart actions',
+		);
 		assert(document.activeElement !== button('重启以更新'), 'The confirmation does not automatically focus installation');
+		await Promise.all(
+			document
+				.querySelector('.app-update-dialog')
+				.getAnimations({ subtree: true })
+				.map((animation) => animation.finished.catch(() => {})),
+		);
 		await invoke('smoke_snapshot', { name: 'update-ready' });
 		button('稍后').click();
 		await waitFor(() => !document.querySelector('[role="dialog"]'));
@@ -113,6 +167,21 @@
 		await waitFor(() => document.documentElement.dataset.theme === 'dark');
 		assert((await window.svnbox.call('state')).settings.theme === 'dark', 'Appearance changes persist through the Rust settings command');
 		await invoke('smoke_snapshot', { name: 'settings' });
+		button('关闭').click();
+		await waitFor(() => !document.querySelector('[role="dialog"]'));
+		document.querySelector('.app-update-button').click();
+		await waitFor(() => button('重启以更新'));
+		await Promise.all(
+			document
+				.querySelector('.app-update-dialog')
+				.getAnimations({ subtree: true })
+				.map((animation) => animation.finished.catch(() => {})),
+		);
+		await invoke('smoke_snapshot', { name: 'update-ready-dark' });
+		button('稍后').click();
+		await waitFor(() => !document.querySelector('[role="dialog"]'));
+		await invoke('smoke_menu', { action: 'settings' });
+		await waitFor(() => button('通用设置'));
 		await window.svnbox.call('settings', { language: 'en' });
 		await waitFor(() => document.documentElement.lang === 'en' && document.body.innerText.includes('Current version'));
 		assert(true, 'Native language events update the renderer without restarting');

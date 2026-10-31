@@ -59,8 +59,11 @@ pub async fn smoke_snapshot(
         "workspace",
         "commit",
         "settings",
+        "update-current",
+        "update-error",
         "update-progress",
         "update-ready",
+        "update-ready-dark",
         "failure",
     ]
     .contains(&name.as_str())

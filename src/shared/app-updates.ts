@@ -10,6 +10,7 @@ export interface AppUpdateState {
 	currentVersion: string;
 	revision: number;
 	version?: string;
+	publishedAt?: number;
 	percent?: number;
 	received?: number;
 	total?: number;
