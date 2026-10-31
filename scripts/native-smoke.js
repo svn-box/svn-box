@@ -48,11 +48,17 @@
 		await waitFor(() => !document.querySelector('[role="dialog"]'));
 		let update = await window.svnbox.call('appUpdate', { action: 'status' });
 		assert(update.phase === 'idle', 'An isolated updater fixture starts without automatic checks');
+		assert(!document.querySelector('.app-update-button'), 'The titlebar has no permanent app update button');
 		const updatePhases = new Set();
 		const unsubscribeUpdates = window.svnbox.onAppUpdate((next) => {
 			update = next;
 			updatePhases.add(next.phase);
 		});
+		await invoke('smoke_menu', { action: 'app-update' });
+		await waitFor(() => update.phase === 'checking');
+		assert(!document.querySelector('.app-update-button'), 'Checking from the menu keeps the update button hidden');
+		await waitFor(() => update.phase === 'current' && document.body.innerText.includes('已是最新版本'));
+		assert(!document.querySelector('.app-update-button'), 'An up-to-date result shows temporary feedback without a persistent button');
 		await invoke('smoke_menu', { action: 'app-update' });
 		await waitFor(() => update.phase === 'downloading');
 		assert(!document.querySelector('.settings-dialog'), 'The native update menu starts a background check without opening settings');
@@ -65,13 +71,14 @@
 		document.querySelector('.app-update-button').click();
 		await waitFor(() => button('取消下载'));
 		button('取消下载').click();
-		await waitFor(() => update.phase === 'paused' && !document.querySelector('[role="dialog"]'));
+		await waitFor(() => update.phase === 'paused' && !document.querySelector('[role="dialog"]') && !document.querySelector('.app-update-button'));
 		assert((await window.svnbox.call('appUpdate', { action: 'status' })).phase === 'paused', 'Cancellation stops the background transfer');
-		document.querySelector('.app-update-button').click();
+		await invoke('smoke_menu', { action: 'app-update' });
 		await waitFor(() => update.phase === 'downloading' && update.percent > 0);
 		await waitFor(() => Number(document.querySelector('.app-update-button [role="progressbar"]')?.getAttribute('aria-valuenow')) > 0);
 		const ring = document.querySelector('.app-update-button [role="progressbar"]');
 		assert(Number(ring.getAttribute('aria-valuenow')) > 0 && Number(ring.getAttribute('aria-valuenow')) < 100, 'The original update button shows real byte download progress');
+		assert(document.querySelector('.app-update-button').textContent.trim() === '下载更新', 'An available update shows its download action instead of a permanent check button');
 		await invoke('smoke_snapshot', { name: 'update-progress' });
 		document.querySelector('.app-update-button').click();
 		await waitFor(() => button('稍后'));

@@ -852,7 +852,8 @@
 		"readOnly": "This file is read-only. Obtain the SVN lock or adjust its permissions, then review again."
 	},
 	"appUpdate": {
-		"softwareUpdate": "App update",
+		"downloadingButton": "Downloading",
+		"verifyingButton": "Verifying",
 		"readyButton": "Restart",
 		"idle": "Check for app updates",
 		"disabled": "App updates",

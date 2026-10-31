@@ -818,7 +818,8 @@
 		"readOnly": "文件只读，无法覆盖。请先取得 SVN 锁或调整文件权限，再重新审阅。"
 	},
 	"appUpdate": {
-		"softwareUpdate": "软件更新",
+		"downloadingButton": "下载更新",
+		"verifyingButton": "校验更新",
 		"readyButton": "重启更新",
 		"idle": "检查软件更新",
 		"disabled": "应用更新",

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import type { AppUpdateAction, AppUpdateState } from '../../../shared/app-updates';
+import { translate } from '../../../shared/i18n';
 import { api, errorText } from '../lib/api';
 import { workspaceStore } from '../state/workspace';
 
@@ -21,6 +23,9 @@ export function useAppUpdate() {
 		setState(next);
 		if (next.phase !== previous.phase && ['downloaded', 'error'].includes(next.phase)) {
 			setOpen(true);
+		}
+		if (next.phase === 'current' && previous.phase === 'checking') {
+			toast.success(translate('appUpdate.current'));
 		}
 	}, []);
 	useEffect(() => {

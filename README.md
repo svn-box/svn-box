@@ -119,7 +119,7 @@ Drag the panel dividers to resize the workspace or collapse the inspector. Open 
 
 ### Update the application
 
-Choose **svnbox → Check for Updates** or use **App update** above the repository sidebar. Checking starts a background download when a stable update is available; its ring shows the download progress while you keep working. Dismissing the prompt leaves the download running; cancelling stops it and allows a new check. Once verified, choose **Later** or **Restart to update**. Running SVN operations must finish before installation, and commit drafts are saved before restarting. Settings contains preferences and version information, with no update controls.
+Choose **svnbox → Check for Updates**. When a stable update is found, a button appears above the repository sidebar and shows background download progress. There is no permanent update button; an up-to-date result appears as a temporary notification. Dismissing the prompt leaves the download running; cancelling stops it, hides the button and allows a new check from the menu. Once verified, choose **Later** or **Restart to update**. Running SVN operations must finish before installation, and commit drafts are saved before restarting. Settings contains preferences and version information, with no update controls.
 
 Updates come from this repository's stable GitHub Releases. Tauri updates verify the application’s dedicated signature. Switching from Electron requires one manual installation of the Tauri version.
 

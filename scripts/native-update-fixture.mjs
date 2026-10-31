@@ -33,9 +33,14 @@ export async function createUpdateFixture(root) {
 	});
 	const signature = (await readFile(`${archive}.sig`, 'utf8')).trim();
 	const transfers = [];
+	let checks = 0;
 	let base;
 	const server = createServer((request, response) => {
 		if (request.url === '/latest.json') {
+			if (checks++ === 0) {
+				setTimeout(() => response.writeHead(204).end(), 200);
+				return;
+			}
 			response.writeHead(200, { 'Content-Type': 'application/json' });
 			response.end(JSON.stringify({ version, notes: 'Native updater regression fixture.', platforms: { 'darwin-aarch64': { url: `${base}/fixture`, signature } } }));
 			return;

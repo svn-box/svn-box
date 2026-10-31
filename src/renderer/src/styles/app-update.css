@@ -1,18 +1,18 @@
 .titlebar-sidebar .app-update-button {
+	/* Match the native traffic lights above the two-line project heading. */
+	align-self: flex-start;
+	margin-top: 14px;
 	margin-left: auto;
 	margin-right: 12px;
 	max-width: calc(100% - 106px);
-	height: 27px;
+	height: 26px;
 	font-size: 11px;
+	line-height: 16px;
 	color: var(--accent);
 }
 
 .app-update-button[data-update-phase='downloaded'] {
 	color: var(--on-accent);
-}
-
-.app-update-button[data-update-phase='error'] {
-	color: var(--danger);
 }
 
 .app-update-ring {

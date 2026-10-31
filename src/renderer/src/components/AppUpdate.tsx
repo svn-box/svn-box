@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, CircleAlert, Download, LoaderCircle, RefreshCw } from 'lucide-react';
+import { Download, LoaderCircle, RefreshCw } from 'lucide-react';
 import type { AppUpdateState } from '../../../shared/app-updates';
 import type { useAppUpdate } from '../queries/use-app-update';
 import { Button } from './ui/button';
@@ -30,9 +30,12 @@ function DownloadProgress({ state }: { state: AppUpdateState }) {
 export function AppUpdateButton({ updates }: { updates: Updates }) {
 	const { t } = useTranslation();
 	const { phase, percent } = updates.state;
-	const working = ['checking', 'verifying', 'installing'].includes(phase);
+	if (!['downloading', 'verifying', 'downloaded', 'installing'].includes(phase)) {
+		return null;
+	}
 	const key = phase === 'downloading' && percent === undefined ? 'downloadingUnknown' : phase;
 	const label = t(`appUpdate.${key}`, { percent: Math.floor(percent ?? 0) });
+	const caption = phase === 'downloaded' ? 'readyButton' : phase === 'downloading' ? 'downloadingButton' : phase === 'verifying' ? 'verifyingButton' : 'installing';
 	return (
 		<Button
 			className="app-update-button"
@@ -45,16 +48,12 @@ export function AppUpdateButton({ updates }: { updates: Updates }) {
 		>
 			{phase === 'downloading' ? (
 				<DownloadProgress state={updates.state} />
-			) : working ? (
-				<LoaderCircle className="spin" aria-hidden="true" />
-			) : phase === 'error' ? (
-				<CircleAlert aria-hidden="true" />
-			) : phase === 'current' ? (
-				<Check aria-hidden="true" />
-			) : (
+			) : phase === 'downloaded' ? (
 				<Download aria-hidden="true" />
+			) : (
+				<LoaderCircle className="spin" aria-hidden="true" />
 			)}
-			{t(phase === 'downloaded' ? 'appUpdate.readyButton' : 'appUpdate.softwareUpdate')}
+			{t(`appUpdate.${caption}`)}
 		</Button>
 	);
 }
