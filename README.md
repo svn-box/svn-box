@@ -119,7 +119,7 @@ Drag the panel dividers to resize the workspace or collapse the inspector. Open 
 
 ### Update the application
 
-Choose **svnbox → Check for Updates** or open **Settings → App Updates**. Checking does not download anything. Choose Download, then Restart and Install when ready. Running SVN operations must finish before installation, and commit drafts are saved before restarting.
+Choose **svnbox → Check for Updates** or use **App update** above the repository sidebar. Checking starts a background download when a stable update is available; its ring shows the download progress while you keep working. Dismissing the prompt leaves the download running; cancelling stops it and allows a new check. Once verified, choose **Later** or **Restart to update**. Running SVN operations must finish before installation, and commit drafts are saved before restarting. Settings contains preferences and version information, with no update controls.
 
 Updates come from this repository's stable GitHub Releases. Tauri updates verify the application’s dedicated signature. Switching from Electron requires one manual installation of the Tauri version.
 
@@ -168,7 +168,7 @@ Credential names, usernames and scopes are preserved. Electron's encrypted passw
 
 Local packaging creates an ad-hoc signed app under `src-tauri/target/release/bundle/macos/仓盒.app`. Preview artifacts are placed under `release/preview/<version>/macos/arm64/`. A public release uses `npm run release:mac`, requires Developer ID and notarization credentials, and never falls back to an ad-hoc build. Packaging produces local artifacts; publication is a separate action.
 
-Tauri updates use this application's dedicated public key, signed `.app.tar.gz` artifacts and `latest.json`. Signatures bind the archive to the announced version, stable versions must increase, downloads are manual, and active SVN writes block installation. Development and native verification builds disable updates.
+Tauri updates use this application's dedicated public key, signed `.app.tar.gz` artifacts and `latest.json`. Signatures bind the archive to the announced version, stable versions must increase, checks are manual, and active SVN writes block installation. New versions download automatically after a check, and require explicit confirmation to install. Development and native verification builds disable updates.
 
 The signing private key stays outside the repository at `~/.config/svnbox/signing/tauri-updater.key` on the migration machine. Other builders may supply `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Preserve the private key for future releases; do not commit or publish it. A builder without the signing key can still create a local app without updater artifacts.
 
@@ -179,5 +179,7 @@ The Tauri feed differs from Electron's `latest-mac.yml`; Electron clients need o
 This project retains the history of `svn-box/svn-box`. Release notes live in `docs/releases/<version>.md`; npm, Cargo and Tauri versions must agree.
 
 Pushing the matching version tag, such as `v0.4.0`, triggers `Release macOS arm64`. The `xcode-27` build signs and notarizes the app and DMG, verifies the extracted updater archive and read-only mounted DMG, then uploads and checks a draft before publishing the GitHub Release and `latest.json`. Existing releases are never overwritten.
+
+Validation CI runs for pull requests or manual dispatch. Pushing `main` alongside a release tag starts only the release workflow, which runs the source checks once. Both workflows share toolchain and resource preparation. The release builds the production frontend and signed application once, then runs native regression with an isolated debug test binary against that frontend; test features are not shipped. The verified distribution transfer artifact is retained for one day, while failure diagnostics remain available for seven days.
 
 The workflow uses repository Secrets `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and the dedicated SVNBox `TAURI_SIGNING_PRIVATE_KEY`. Set `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when the key has a nonempty password. Signing material is imported into a temporary keychain and removed after the build, restoring the original keychain search list.

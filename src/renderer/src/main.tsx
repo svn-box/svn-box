@@ -11,6 +11,7 @@ import { api } from './lib/api';
 import './styles.css';
 import './styles/macos.css';
 import './styles/settings.css';
+import './styles/app-update.css';
 import './styles/authentication.css';
 import './styles/operations.css';
 import './styles/file-versions.css';

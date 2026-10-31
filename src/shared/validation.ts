@@ -13,7 +13,7 @@ const paths = z.array(path).max(2000);
 const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const range = z.object({ from: revision, to: z.union([revision, z.literal('WORKING')]) }).strict();
 export const schemas = {
-	appUpdate: z.object({ action: z.enum(['status', 'check', 'download', 'install', 'release']) }).strict(),
+	appUpdate: z.object({ action: z.enum(['status', 'check', 'download', 'cancel', 'install', 'release']) }).strict(),
 	state: z.undefined(),
 	detect: z.object({ path: path.optional() }),
 	settings: z

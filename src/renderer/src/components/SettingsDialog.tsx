@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { isUiLanguage, translate, UI_LANGUAGE, type UiLanguage } from '../../../shared/i18n';
 import { useEffect, useId, useRef, useState } from 'react';
-import { Check, CircleAlert, LoaderCircle, RefreshCw, Settings, ShieldCheck, Wrench } from 'lucide-react';
+import { Check, CircleAlert, LoaderCircle, Settings, ShieldCheck, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import { themes } from '../../../shared/themes';
 import type { AppState, Detection, Theme } from '../../../shared/types';
@@ -11,7 +11,6 @@ import type { WorkspaceCatalog } from '../state/workspace-store';
 import { Button } from './ui/button';
 import { Select } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
-import { AppUpdateSection } from './AppUpdateSection';
 const pages = [
 	{
 		id: 'general',
@@ -31,31 +30,12 @@ const pages = [
 
 		icon: Wrench,
 	},
-	{
-		id: 'updates',
-
-		get label() {
-			return translate('appUpdateSection.appUpdates');
-		},
-
-		icon: RefreshCw,
-	},
 ] as const;
 
-export function SettingsDialog({
-	state,
-	onState,
-	onClose,
-	updateRequest = 0,
-}: {
-	state: WorkspaceCatalog;
-	onState: (state: AppState) => void;
-	onClose: () => void;
-	updateRequest?: number;
-}) {
+export function SettingsDialog({ state, onState, onClose, version = '' }: { state: WorkspaceCatalog; onState: (state: AppState) => void; onClose: () => void; version?: string }) {
 	const { t, i18n } = useTranslation();
 	const id = useId();
-	const [page, setPage] = useState<(typeof pages)[number]['id']>(updateRequest ? 'updates' : 'general');
+	const [page, setPage] = useState<(typeof pages)[number]['id']>('general');
 	const [path, setPath] = useState(state.settings.svnPath);
 	const [tool, setTool] = useState(state.settings.mergeTool);
 	const [detection, setDetection] = useState<Detection>();
@@ -68,11 +48,6 @@ export function SettingsDialog({
 	const languageLock = useRef(false);
 	const detectionRequest = useRef(0);
 	const dirty = path !== state.settings.svnPath || tool !== state.settings.mergeTool;
-	useEffect(() => {
-		if (updateRequest) {
-			setPage('updates');
-		}
-	}, [updateRequest]);
 	useEffect(() => {
 		const request = ++detectionRequest.current;
 		void api
@@ -157,6 +132,7 @@ export function SettingsDialog({
 			<DialogContent className="settings-dialog">
 				<header className="settings-header">
 					<DialogTitle className="dialog-title">{t('common.settings')}</DialogTitle>
+					{version && <span className="settings-app-version">{t('appUpdate.currentVersion', { version })}</span>}
 					<DialogDescription className="sr-only">{t('settingsDialog.manageLanguageAppearanceAndLocalSvnTools')}</DialogDescription>
 				</header>
 				<div className="settings-layout">
@@ -268,7 +244,7 @@ export function SettingsDialog({
 									</div>
 								</div>
 							</>
-						) : page === 'tools' ? (
+						) : (
 							<>
 								{toolError && (
 									<p className="settings-tool-error" role="alert">
@@ -316,8 +292,6 @@ export function SettingsDialog({
 									<p className="settings-help">{t('settingsDialog.useItToMergeConflictFilesSaveReturn')}</p>
 								</div>
 							</>
-						) : (
-							<AppUpdateSection focusRequest={updateRequest} />
 						)}
 					</section>
 				</div>

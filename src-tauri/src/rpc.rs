@@ -194,9 +194,10 @@ pub fn validate(method: &str, input: &Value) -> Result<()> {
                 .count()
                 == 1
         }
-        "appUpdate" => {
-            ["status", "check", "download", "install", "release"].contains(&s(input, "action"))
-        }
+        "appUpdate" => [
+            "status", "check", "download", "cancel", "install", "release",
+        ]
+        .contains(&s(input, "action")),
         "session" => valid_session(&input["patch"]),
         "rangeDiff" => valid_range(input),
         _ => true,

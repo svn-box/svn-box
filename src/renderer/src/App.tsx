@@ -33,7 +33,7 @@ import {
 	Trash2,
 	Upload,
 } from 'lucide-react';
-import { isChanged, isConflict, type Action, type AppState, type Operation, type Review, type WorkspaceSession } from '../../shared/types';
+import { isChanged, isConflict, isOperationActive, type Action, type AppState, type Operation, type Review, type WorkspaceSession } from '../../shared/types';
 import { Button } from './components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './components/ui/dropdown-menu';
 import { api, errorText, Modal, RemoteDialog, ReviewDialog, SettingsDialog } from './components/Dialogs';
@@ -48,6 +48,8 @@ import { acceptOperation, svnQueries, subscribeWorkspaceRuntime } from './querie
 import { queryKeys } from './queries/svn-queries';
 import { useStatus, useOperationSummary } from './queries/hooks';
 import { useForegroundRefresh } from './queries/use-foreground-refresh';
+import { useAppUpdate } from './queries/use-app-update';
+import { AppUpdateButton, AppUpdateDialog } from './components/AppUpdate';
 import { workspaceStore, useWorkspaceStore } from './state/workspace';
 import { WorkingCopyView } from './components/WorkingCopyView';
 import { WorkspaceViewTabs, WorkingCopyMenu, WorkspaceStatus } from './components/WorkspaceToolbar';
@@ -66,7 +68,8 @@ export function App() {
 	const activeId = useWorkspaceStore((store) => store.activeId);
 	const operations = useOperationSummary();
 	const [modal, setModal] = useState<'settings' | 'remote' | 'commit' | 'group' | 'manage' | null>(null);
-	const [updateRequest, setUpdateRequest] = useState(0);
+	const updates = useAppUpdate();
+	const updatePreparing = useWorkspaceStore((store) => Object.values(store.updateIntents).some((intent) => intent.preparing));
 	const [remoteId, setRemoteId] = useState<string>();
 	const [review, setReview] = useState<Review>();
 	const [fileVersions, setFileVersions] = useState<{ wcId: string; path: string; revision?: number }>();
@@ -325,9 +328,7 @@ export function App() {
 		if (action === 'settings') {
 			setModal('settings');
 		} else if (action === 'app-update') {
-			setUpdateRequest((request) => request + 1);
-			setModal('settings');
-			void api.call('appUpdate', { action: 'check' }).catch(showError);
+			updates.activate();
 		} else if (action === 'add') {
 			void addWorkingCopy();
 		} else if (action === 'remote') {
@@ -514,6 +515,7 @@ export function App() {
 			<header className="titlebar">
 				<div className="titlebar-sidebar">
 					<div className="traffic-space" />
+					<AppUpdateButton updates={updates} />
 				</div>
 				{wc ? (
 					<div className="project-header">
@@ -740,10 +742,9 @@ export function App() {
 				<SettingsDialog
 					state={state}
 					onState={acceptState}
-					updateRequest={updateRequest}
+					version={updates.state.currentVersion}
 					onClose={() => {
 						setModal(null);
-						setUpdateRequest(0);
 					}}
 				/>
 			)}
@@ -761,6 +762,7 @@ export function App() {
 				/>
 			)}
 
+			<AppUpdateDialog updates={updates} busy={updatePreparing || operations.some(isOperationActive)} />
 			{fileVersions && <FileVersionsDialog key={`${fileVersions.wcId}:${fileVersions.path}`} {...fileVersions} onClose={() => setFileVersions(undefined)} />}
 			{review && (
 				<ReviewDialog

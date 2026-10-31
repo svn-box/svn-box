@@ -55,7 +55,16 @@ pub async fn smoke_snapshot(
     window: tauri::WebviewWindow,
     name: String,
 ) -> std::result::Result<(), String> {
-    if !["workspace", "commit", "settings", "failure"].contains(&name.as_str()) {
+    if ![
+        "workspace",
+        "commit",
+        "settings",
+        "update-progress",
+        "update-ready",
+        "failure",
+    ]
+    .contains(&name.as_str())
+    {
         return Err("Unknown snapshot".into());
     }
     let output = PathBuf::from(

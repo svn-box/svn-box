@@ -119,7 +119,7 @@ FileMerge 需要安装 Xcode。配置其他工具时，会打开来源与输出�
 
 ### 更新应用
 
-从 **仓盒 → 检查更新**，或 **设置 → 应用更新** 检查新版本。检查不会自动下载；选择下载后，再按需“重启并安装”。安装前须先完成正在进行的 SVN 操作，提交草稿会在重启前保存。
+从 **仓盒 → 检查更新**，或仓库侧栏上方的 **软件更新** 按钮主动检查正式版。发现新版后自动后台下载，按钮原位显示环形进度，可以继续工作；关闭提示不会中断下载，也可以取消后重新检查。更新校验完成后选择 **稍后** 或 **重启以更新**。安装前须先完成正在进行的 SVN 操作，提交草稿会在重启前保存。设置中只保留偏好与版本信息，不再提供更新控件。
 
 更新来自本仓库的 GitHub 正式发布版本，Tauri 更新会验证仓盒独立的签名。Electron 用户切换到 Tauri 版时，需要先手动安装一次。
 
@@ -168,7 +168,7 @@ TS/TSX 沿用 `.prettierrc.json`，Rust 遵循 `src-tauri/rustfmt.toml`，通过
 
 本地打包会在 `src-tauri/target/release/bundle/macos/仓盒.app` 生成临时签名的应用；预览产物位于 `release/preview/<version>/macos/arm64/`。正式发布构建使用 `npm run release:mac`，必须具备 Developer ID 与公证凭据，缺失时会失败，不会降级为临时签名。打包只生成本地产物，发布需要另行执行。
 
-Tauri 更新使用仓盒独立的公钥、签名的 `.app.tar.gz` 更新包和 `latest.json`。签名绑定包内容与声明版本，只接受递增的正式版本；下载由用户主动发起，存在 SVN 写操作时阻止安装。开发和原生验证构建禁用更新。
+Tauri 更新使用仓盒独立的公钥、签名的 `.app.tar.gz` 更新包和 `latest.json`。签名绑定包内容与声明版本，只接受递增的正式版本；检查由用户主动发起，发现新版后自动后台下载，安装仍需明确确认，存在 SVN 写操作时阻止安装。开发和原生验证构建禁用更新。
 
 迁移机器上的签名私钥单独保存在 `~/.config/svnbox/signing/tauri-updater.key`，不在工程内。其他构建机器可以设置 `TAURI_SIGNING_PRIVATE_KEY` 与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。后续发布需保留该私钥，不应提交或公开；没有私钥也可以构建不带更新产物的本地应用。
 
@@ -179,5 +179,7 @@ Tauri 更新清单与 Electron 的 `latest-mac.yml` 不兼容，因此 Electron 
 仓库沿用 `svn-box/svn-box` 及原有提交历史。发布说明位于 `docs/releases/<version>.md`，npm、Cargo 与 Tauri 的版本号必须一致。
 
 推送与版本号一致的标签（如 `v0.4.0`）会触发 `Release macOS arm64`：在 `xcode-27` 上构建、签名并公证 App 和 DMG，验证解包后的更新包与只读挂载的 DMG，再上传并核验草稿中的文件，最后发布 GitHub Release 与 `latest.json` 更新清单。已有版本不会被覆盖。
+
+日常 CI 仅由 PR 或手动触发；同时推送 `main` 与发布标签时，只执行发布工作流的一轮完整检查。两套流程共用工具链与原生资源准备。发布时仅构建一次正式前端与签名应用，随后用隔离的 debug 测试程序复用该前端做原生回归，正式包不启用测试 feature。用于跨任务传递的正式产物保留 1 天，失败诊断保留 7 天。
 
 工作流使用仓库的 `BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APPLE_ID`、`APPLE_TEAM_ID`、`APPLE_APP_SPECIFIC_PASSWORD` 和仓盒专用的 `TAURI_SIGNING_PRIVATE_KEY` Secrets。私钥口令如非空，另设 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。签名材料仅在构建任务中导入临时钥匙串，结束时清理并恢复原钥匙串搜索列表。

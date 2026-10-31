@@ -1,6 +1,6 @@
 [package]
 name = "svnbox-app"
-version = "0.4.2"
+version = "0.4.3"
 description = "仓盒 · 面向 macOS 的多工作副本 SVN 客户端"
 authors = ["svnbox contributors"]
 edition = "2021"
@@ -34,6 +34,7 @@ regex = "1"
 url = "2"
 percent-encoding = "2"
 libc = "0.2"
+futures-util = "0.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3"
