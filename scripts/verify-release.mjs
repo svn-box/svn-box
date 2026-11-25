@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readReleaseMetadata, verifyReleaseFiles } from './release-metadata.mjs';
-import { releaseCommand, verifySignature, verifySignedDmg } from './release-signing.mjs';
+import { localSigningSettings, releaseCommand, verifySignature, verifySignedDmg } from './release-signing.mjs';
 import { verifyApplication } from './verify-package.mjs';
 import { verifyNativeRuntime } from './native-runtime-signing.mjs';
 
@@ -26,7 +26,7 @@ try {
 	const application = join(temporary, '仓盒.app');
 	const digest = await verifyApplication(application);
 	if (!unsigned) {
-		assert.equal(manifest.teamId, process.env.APPLE_TEAM_ID, 'Apple team differs from the configured release team.');
+		assert.equal(manifest.teamId, (await localSigningSettings()).teamId, 'Apple team differs from the configured release team.');
 		await verifySignature(application, manifest.teamId, true);
 		await verifyNativeRuntime(join(application, 'Contents/Resources/svn'), manifest.teamId);
 		await releaseCommand('/usr/bin/xcrun', ['stapler', 'validate', application]);

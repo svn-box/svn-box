@@ -174,12 +174,17 @@ The signing private key stays outside the repository at `~/.config/svnbox/signin
 
 The Tauri feed differs from Electron's `latest-mac.yml`; Electron clients need one manual installation of the Tauri release. The same repository keeps Tauri on `main` and Electron on `electron-legacy`. See [the migration notes](docs/migration.md) for the native module map and verification coverage.
 
-### GitHub Actions releases
+### Local macOS releases
 
-This project retains the history of `svn-box/svn-box`. Release notes live in `docs/releases/<version>.md`; npm, Cargo and Tauri versions must agree.
+On an Apple Silicon Mac, commit the version and `docs/releases/<version>.md`, then create and push the matching `v<version>` tag. From a clean checkout of that tag, run:
 
-Pushing the matching version tag, such as `v0.4.0`, triggers `Release macOS arm64`. The `xcode-27` build signs and notarizes the app and DMG, verifies the extracted updater archive and read-only mounted DMG, then uploads and checks a draft before publishing the GitHub Release and `latest.json`. Existing releases are never overwritten.
+```sh
+npm ci
+npm run release:local
+```
 
-Validation CI runs for pull requests or manual dispatch. Pushing `main` alongside a release tag starts only the release workflow, which runs the source checks once. Both workflows share toolchain and resource preparation. The release builds the production frontend and signed application once, then runs native regression with an isolated debug test binary against that frontend; test features are not shipped. The verified distribution transfer artifact is retained for one day, while failure diagnostics remain available for seven days.
+Set `APPLE_TEAM_ID` in `~/.config/svnbox/release.env`. Store notarization credentials interactively with `xcrun notarytool store-credentials svnbox-notary`, or set `SVNBOX_NOTARY_PROFILE` to an existing Keychain profile for the same team. Set `CSC_KEYCHAIN` and `SVNBOX_NOTARY_KEYCHAIN` if the certificate or notary profile uses a specific keychain. Uploads use `GH_TOKEN`, an authenticated `gh` session, or the Git credential for this repository.
 
-The workflow uses repository Secrets `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and the dedicated SVNBox `TAURI_SIGNING_PRIVATE_KEY`. Set `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when the key has a nonempty password. Signing material is imported into a temporary keychain and removed after the build, restoring the original keychain search list.
+The local command runs source checks, signs the bundled SVN runtime and app, notarizes both the app and DMG, runs native regression against the production frontend, and verifies the extracted updater, mounted DMG and Gatekeeper assessments. It uploads a GitHub draft, checks each asset's SHA-256, then publishes it as the latest release. Pull requests and manual validation still run in GitHub Actions.
+
+The signed app is cached under `work/release/` in that checkout. After a temporary notarization failure, run `npm run release:resume`, `node scripts/native-e2e.mjs`, and `npm run release:publish` to finish with the same signed app. Distribution files are written to `release/<version>/macos/arm64/`.

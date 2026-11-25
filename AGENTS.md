@@ -23,4 +23,4 @@
 
 # Releases
 
-- After successfully pushing a release tag and triggering its workflow, report the version and workflow URL as triggered, then end the turn while the remote job continues. Wait for remote completion or monitor its progress only when the user explicitly asks.
+- Publish tagged releases from the Apple Silicon signing Mac. Follow [Local macOS releases](README.md#local-macos-releases) to build, resume notarization, or upload. Report the verified GitHub Release URL.

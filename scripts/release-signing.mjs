@@ -1,17 +1,30 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { basename } from 'node:path';
-import { promisify } from 'node:util';
+import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, join } from 'node:path';
+import { parseEnv, promisify } from 'node:util';
 
 const execute = promisify(execFile);
-const signingVariables = ['APPLE_ID', 'APPLE_TEAM_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'CSC_KEYCHAIN'];
 
-export function requireSigningEnvironment(env = process.env) {
-	for (const name of signingVariables) {
-		assert.ok(env[name]?.trim(), `Missing ${name}; signed releases never fall back to unsigned builds.`);
+export async function localSigningSettings() {
+	const path = join(homedir(), '.config/svnbox/release.env');
+	let local = {};
+	try {
+		local = parseEnv(await readFile(path, 'utf8'));
+	} catch (error) {
+		if (error.code !== 'ENOENT') {
+			throw error;
+		}
 	}
-	assert.match(env.APPLE_TEAM_ID, /^[A-Z\d]{10}$/, 'Apple team must be ten uppercase letters or digits.');
-	return { teamId: env.APPLE_TEAM_ID, keychain: env.CSC_KEYCHAIN };
+	const teamId = process.env.APPLE_TEAM_ID || local.APPLE_TEAM_ID;
+	assert.match(teamId ?? '', /^[A-Z0-9]{10}$/, 'Set APPLE_TEAM_ID for the SVNBox signing team.');
+	return {
+		teamId,
+		keychain: process.env.CSC_KEYCHAIN || local.CSC_KEYCHAIN,
+		profile: process.env.SVNBOX_NOTARY_PROFILE || local.SVNBOX_NOTARY_PROFILE || 'svnbox-notary',
+		notaryKeychain: process.env.SVNBOX_NOTARY_KEYCHAIN || local.SVNBOX_NOTARY_KEYCHAIN,
+	};
 }
 
 export async function releaseCommand(tool, arguments_, env = process.env) {
@@ -35,36 +48,27 @@ export async function releaseCommand(tool, arguments_, env = process.env) {
 	}
 }
 
-export async function prepareSigning(env = process.env) {
-	const signing = requireSigningEnvironment(env);
-	const { stdout } = await releaseCommand('/usr/bin/security', ['find-identity', '-v', '-p', 'codesigning', signing.keychain]);
-	const identity = stdout.match(new RegExp(`"(Developer ID Application: [^"\\r\\n]+ \\(${signing.teamId}\\))"`))?.[1];
-	assert.ok(identity, 'Temporary keychain has no Developer ID Application identity for this team.');
-	await releaseCommand('/usr/bin/xcrun', [
-		'notarytool',
-		'store-credentials',
-		'svnbox-notary',
-		'--apple-id',
-		env.APPLE_ID,
-		'--team-id',
-		signing.teamId,
-		'--password',
-		env.APPLE_APP_SPECIFIC_PASSWORD,
-		'--keychain',
-		signing.keychain,
-	]);
-	return { ...signing, identity };
+export async function prepareSigning() {
+	const signing = await localSigningSettings();
+	const { stdout } = await releaseCommand('/usr/bin/security', ['find-identity', '-v', '-p', 'codesigning', ...(signing.keychain ? [signing.keychain] : [])]);
+	const matches = new Map();
+	for (const match of stdout.matchAll(/([A-F0-9]{40}) "([^"]+)"/g)) {
+		if (match[2].startsWith('Developer ID Application:') && match[2].endsWith(`(${signing.teamId})`)) {
+			matches.set(match[1], match[2]);
+		}
+	}
+	assert.equal(matches.size, 1, 'Select a keychain with one valid Developer ID Application certificate for the configured team.');
+	return { ...signing, identity: matches.values().next().value };
 }
 
-export async function notarize(path, keychain, staplePath = path) {
+export async function notarize(path, signing, staplePath = path) {
 	const { stdout } = await releaseCommand('/usr/bin/xcrun', [
 		'notarytool',
 		'submit',
 		path,
 		'--keychain-profile',
-		'svnbox-notary',
-		'--keychain',
-		keychain,
+		signing.profile,
+		...(signing.notaryKeychain ? ['--keychain', signing.notaryKeychain] : []),
 		'--wait',
 		'--output-format',
 		'json',

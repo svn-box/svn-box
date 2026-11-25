@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { appendFile } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { readReleaseMetadata, verifyReleaseFiles, updateManifest } from './release-metadata.mjs';
-import { ensureReleaseAbsent, readReleaseTarget, releaseRepository, verifyUploadedDraft } from './github-release-api.mjs';
+import { readReleaseMetadata, verifyReleaseFiles, updateManifest, repository } from './release-metadata.mjs';
+import { ensureReleaseAbsent, readReleaseTarget, verifyUploadedDraft } from './github-release-api.mjs';
+import { readGitHubJson } from './github-api.mjs';
 
 const execute = promisify(execFile);
 
@@ -37,28 +37,45 @@ export async function publishRelease(metadata, commit, repository, token, run) {
 	await run(['release', 'edit', metadata.tag, '--repo', repository, '--draft=false', '--latest']);
 }
 
+async function githubToken() {
+	const configured = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+	if (configured) {
+		return configured;
+	}
+	const auth = await execute('gh', ['auth', 'token', '--hostname', 'github.com']).catch(() => undefined);
+	if (auth?.stdout.trim()) {
+		return auth.stdout.trim();
+	}
+	return new Promise((done, reject) => {
+		const child = execFile('git', ['credential', 'fill'], { env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, timeout: 15000 }, (error, stdout) => {
+			const token = stdout
+				.split('\n')
+				.find((line) => line.startsWith('password='))
+				?.slice(9);
+			if (error || !token) {
+				reject(new Error('Sign in to github.com with gh auth login or the Git credential helper.'));
+			} else {
+				done(token);
+			}
+		});
+		child.stdin.end(`protocol=https\nhost=github.com\npath=${repository}.git\n\n`);
+	});
+}
+
 async function main() {
 	const mode = process.argv[2];
 	assert.ok(['prepare', 'publish'].includes(mode) && process.argv.length === 3, 'Use prepare or publish.');
-	assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Release orchestration runs only in GitHub Actions.');
-	const preview = process.env.RELEASE_PREVIEW === 'true';
-	assert.ok(preview || process.env.GITHUB_REF_TYPE === 'tag', 'Publishing requires a version tag.');
-	assert.ok(!preview || mode !== 'publish', 'Preview builds cannot publish.');
-	const metadata = await readReleaseMetadata(resolve('.'), { unsigned: preview, tag: process.env.GITHUB_REF_TYPE === 'tag' ? (process.env.GITHUB_REF_NAME ?? '') : undefined });
-	const repository = releaseRepository();
-	const token = process.env.GH_TOKEN ?? '';
+	const metadata = await readReleaseMetadata();
 	const commit = (await execute('git', ['rev-parse', 'HEAD'])).stdout.trim();
-	assert.match(process.env.GITHUB_SHA ?? '', /^[a-f\d]{40}$/, 'Missing workflow source commit.');
-	assert.equal(commit, (await execute('git', ['rev-parse', `${process.env.GITHUB_SHA}^{commit}`])).stdout.trim(), 'Checkout does not match the workflow source commit.');
+	const token = await githubToken();
+	await readReleaseTarget(repository, metadata.tag, commit, token);
+	await ensureReleaseAbsent(repository, metadata.tag, token);
 	if (mode === 'prepare') {
-		if (!preview) {
-			await readReleaseTarget(repository, metadata.tag, commit, token);
-			await ensureReleaseAbsent(repository, metadata.tag, token);
-		}
-		assert.ok(process.env.GITHUB_OUTPUT, 'Missing GitHub Actions output path.');
-		await appendFile(process.env.GITHUB_OUTPUT, `version=${metadata.version}\ndirectory=${relative(metadata.root, metadata.directory)}\ncommit=${commit}\n`);
+		console.log(`Ready to publish ${metadata.tag} from ${commit}.`);
 		return;
 	}
+	// Validate the downloadable files on the Mac, including Gatekeeper and both stapled tickets.
+	await execute(process.execPath, [fileURLToPath(new URL('./verify-release.mjs', import.meta.url))], { timeout: 15 * 60 * 1000 });
 	await publishRelease(metadata, commit, repository, token, async (arguments_) => {
 		try {
 			await execute('gh', arguments_, { env: { ...process.env, GH_TOKEN: token, GH_DEBUG: '' }, maxBuffer: 4 * 1024 * 1024 });
@@ -66,6 +83,9 @@ async function main() {
 			throw new Error('GitHub Release command failed. Inspect any remaining draft before retrying; no existing assets are overwritten.');
 		}
 	});
+	const published = await readGitHubJson(`repos/${repository}/releases/latest`, token);
+	assert.equal(published.tag_name, metadata.tag, 'Unexpected latest GitHub Release.');
+	console.log(`Published ${published.html_url}`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

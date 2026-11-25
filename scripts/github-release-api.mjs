@@ -1,14 +1,8 @@
 import assert from 'node:assert/strict';
 import { lstat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { fileChecksum, repository } from './release-metadata.mjs';
+import { fileChecksum } from './release-metadata.mjs';
 import { readGitHubJson } from './github-api.mjs';
-
-export function releaseRepository(env = process.env) {
-	assert.match(env.GITHUB_REPOSITORY ?? '', /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9_.-]+$/, 'Missing or invalid GitHub repository.');
-	assert.equal(env.GITHUB_REPOSITORY, repository, 'Release repository must match the configured updater feed.');
-	return env.GITHUB_REPOSITORY;
-}
 
 export async function readReleaseTarget(repository, tag, commit, token) {
 	assert.match(commit, /^[a-f\d]{40}$/, 'Release requires an exact source commit.');

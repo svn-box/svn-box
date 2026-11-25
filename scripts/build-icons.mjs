@@ -8,6 +8,10 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
+const bundleOnly = process.argv[2] === '--bundle-only';
+if (process.argv.length !== (bundleOnly ? 3 : 2)) {
+	throw new Error('Use --bundle-only to compile native resources for a tagged release.');
+}
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const resources = join(root, 'resources');
 const document = join(resources, 'svnbox.icon');
@@ -33,28 +37,30 @@ const modes = [
 	['dark', 'Dark'],
 	['tinted', 'TintedDark'],
 ];
-for (const [name, rendition] of modes) {
-	await exec(ictool, [
-		document,
-		'--export-image',
-		'--output-file',
-		join(previews, `${name}.png`),
-		'--platform',
-		'macOS',
-		'--rendition',
-		rendition,
-		'--width',
-		'1024',
-		'--height',
-		'1024',
-		'--scale',
-		'1',
-		'--design-generation',
-		'27',
-		...(name === 'tinted' ? ['--tint-color', '0.60', '--tint-strength', '0.60'] : []),
-	]);
+if (!bundleOnly) {
+	for (const [name, rendition] of modes) {
+		await exec(ictool, [
+			document,
+			'--export-image',
+			'--output-file',
+			join(previews, `${name}.png`),
+			'--platform',
+			'macOS',
+			'--rendition',
+			rendition,
+			'--width',
+			'1024',
+			'--height',
+			'1024',
+			'--scale',
+			'1',
+			'--design-generation',
+			'27',
+			...(name === 'tinted' ? ['--tint-color', '0.60', '--tint-strength', '0.60'] : []),
+		]);
+	}
+	await copyFile(join(previews, 'default.png'), join(resources, 'icon.png'));
 }
-await copyFile(join(previews, 'default.png'), join(resources, 'icon.png'));
 const temporary = await mkdtemp(join(tmpdir(), 'svnbox-icon-'));
 try {
 	const input = join(temporary, 'Icon.icon');
@@ -96,8 +102,10 @@ try {
 	}
 	await copyFile(join(output, 'Icon.icns'), join(resources, 'icon.icns'));
 	await copyFile(join(output, 'Assets.car'), join(resources, 'Assets.car'));
-	await mkdir(join(root, 'src-tauri/icons'), { recursive: true });
-	await writeFile(join(root, 'src-tauri/icons/icon.png'), PNG.sync.write(PNG.sync.read(await readFile(join(resources, 'icon.png'))), { bitDepth: 8 }));
+	if (!bundleOnly) {
+		await mkdir(join(root, 'src-tauri/icons'), { recursive: true });
+		await writeFile(join(root, 'src-tauri/icons/icon.png'), PNG.sync.write(PNG.sync.read(await readFile(join(resources, 'icon.png'))), { bitDepth: 8 }));
+	}
 	await writeFile(join(previews, 'actool.log'), compilation.stdout + compilation.stderr);
 	await writeFile(
 		join(previews, 'source.json'),
@@ -108,7 +116,7 @@ try {
 				composerVersion: version['short-bundle-version'],
 				artworkLayers: 1,
 				nativeBackground: [composition.fill],
-				previews: modes.map(([name]) => `${name}.png`),
+				previews: bundleOnly ? [] : modes.map(([name]) => `${name}.png`),
 			},
 			null,
 			2,
@@ -124,4 +132,6 @@ if (
 ) {
 	throw new Error('构建期间前景原图发生变化，请重新生成图标');
 }
-console.log(`图标已编译：透明仓盒前景 → 原生蓝色底板 → icon.png / icon.icns；Icon Composer ${version['short-bundle-version']}`);
+console.log(
+	bundleOnly ? '发布图标已编译为 Assets.car 和 icon.icns。' : `图标已编译：透明仓盒前景 → 原生蓝色底板 → icon.png / icon.icns；Icon Composer ${version['short-bundle-version']}`,
+);

@@ -174,12 +174,17 @@ Tauri 更新使用仓盒独立的公钥、签名的 `.app.tar.gz` 更新包和 `
 
 Tauri 更新清单与 Electron 的 `latest-mac.yml` 不兼容，因此 Electron 用户需要手动安装一次 Tauri 版。同一仓库的 `main` 维护 Tauri 版，`electron-legacy` 保留 Electron 版。[迁移说明](docs/migration.md)记录了 Rust 模块分工及验证范围。
 
-### GitHub Actions 发布
+### 本地 macOS 发布
 
-仓库沿用 `svn-box/svn-box` 及原有提交历史。发布说明位于 `docs/releases/<version>.md`，npm、Cargo 与 Tauri 的版本号必须一致。
+在 Apple Silicon Mac 上提交版本号和 `docs/releases/<version>.md`，创建并推送对应的 `v<version>` 标签。从该标签的干净检出目录运行：
 
-推送与版本号一致的标签（如 `v0.4.0`）会触发 `Release macOS arm64`：在 `xcode-27` 上构建、签名并公证 App 和 DMG，验证解包后的更新包与只读挂载的 DMG，再上传并核验草稿中的文件，最后发布 GitHub Release 与 `latest.json` 更新清单。已有版本不会被覆盖。
+```sh
+npm ci
+npm run release:local
+```
 
-日常 CI 仅由 PR 或手动触发；同时推送 `main` 与发布标签时，只执行发布工作流的一轮完整检查。两套流程共用工具链与原生资源准备。发布时仅构建一次正式前端与签名应用，随后用隔离的 debug 测试程序复用该前端做原生回归，正式包不启用测试 feature。用于跨任务传递的正式产物保留 1 天，失败诊断保留 7 天。
+首次配置时，将发布团队的 `APPLE_TEAM_ID` 写入 `~/.config/svnbox/release.env`。用 `xcrun notarytool store-credentials svnbox-notary` 交互式保存公证凭据，也可将 `SVNBOX_NOTARY_PROFILE` 指向同一团队已有的钥匙串配置。`CSC_KEYCHAIN` 和 `SVNBOX_NOTARY_KEYCHAIN` 可分别指定证书和公证配置所在的钥匙串。GitHub 上传使用 `GH_TOKEN`、已登录的 `gh` 或当前仓库的 Git 凭据。
 
-工作流使用仓库的 `BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APPLE_ID`、`APPLE_TEAM_ID`、`APPLE_APP_SPECIFIC_PASSWORD` 和仓盒专用的 `TAURI_SIGNING_PRIVATE_KEY` Secrets。私钥口令如非空，另设 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。签名材料仅在构建任务中导入临时钥匙串，结束时清理并恢复原钥匙串搜索列表。
+本地命令执行源码检查，签名内置 SVN 和 App，公证 App 和 DMG，用正式前端运行原生回归，再验证解包后的更新包、挂载的 DMG 和 Gatekeeper。文件上传至 GitHub 草稿后逐一核对 SHA-256，再将该版本发布为最新版本。PR 和手动触发的 CI 仍在 GitHub 运行。
+
+已签名的 App 保存在当前检出目录的 `work/release/`。若 Apple 在公证阶段暂时拒绝请求，恢复后依次运行 `npm run release:resume`、`node scripts/native-e2e.mjs`、`npm run release:publish`，可以复用这份 App。完整安装包位于 `release/<version>/macos/arm64/`。
