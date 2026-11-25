@@ -41,6 +41,9 @@ try {
 	svn('commit', wc, '-m', 'Initial files');
 	await writeFile(join(wc, 'README.md'), 'native edit\n');
 	await writeFile(join(wc, 'other.txt'), 'other native edit\n');
+	await Promise.all(Array.from({ length: 80 }, (_, index) => writeFile(join(wc, `batch-${index}.txt`), 'unversioned\n')));
+	await mkdir(join(wc, 'folder'));
+	await writeFile(join(wc, 'folder', 'child.txt'), 'nested\n');
 	await run('cargo', ['build', '--manifest-path', 'src-tauri/Cargo.toml', '--locked', '--features', 'native-smoke,tauri/custom-protocol', ...(release ? ['--release'] : [])], {
 		env: buildEnv,
 	});

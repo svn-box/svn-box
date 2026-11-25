@@ -17,6 +17,7 @@ export function WorkingCopyView({
 	previewHidden,
 	setPreviewHidden,
 	fileActions,
+	busy,
 	setContext,
 	compareFile,
 	refresh,
@@ -27,6 +28,7 @@ export function WorkingCopyView({
 	previewHidden: boolean;
 	setPreviewHidden: (value: boolean | ((previous: boolean) => boolean)) => void;
 	fileActions: (path: string) => ReactNode;
+	busy: boolean;
 	setContext: (context: FileContext) => void;
 	compareFile: (path: string, revision?: number) => void;
 	refresh: (id: string, remote?: boolean) => unknown;
@@ -66,7 +68,15 @@ export function WorkingCopyView({
 					{session.view === 'history' ? (
 						<HistoryPane wc={wc} compareFile={compareFile} />
 					) : (
-						<FilePane wc={wc} fileActions={fileActions} setContext={setContext} compareFile={compareFile} onTogglePreview={() => setPreviewHidden((value) => !value)} />
+						<FilePane
+							wc={wc}
+							fileActions={fileActions}
+							setContext={setContext}
+							compareFile={compareFile}
+							onTogglePreview={() => setPreviewHidden((value) => !value)}
+							busy={busy}
+							onAdd={(paths) => requestReview('add', paths)}
+						/>
 					)}
 					{showPreview && (
 						<>

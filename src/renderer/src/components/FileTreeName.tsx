@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import type { FileStatus } from '../../../shared/types';
 import { FileIcon } from './FileIcon';
@@ -9,6 +10,7 @@ export function FileTreeName({
 	depth,
 	expanded,
 	showParent,
+	checkbox,
 	onSelect,
 	onToggle,
 	onOpen,
@@ -18,6 +20,7 @@ export function FileTreeName({
 	depth: number;
 	expanded: boolean;
 	showParent: boolean;
+	checkbox?: ReactNode;
 	onSelect: () => void;
 	onToggle: () => void;
 	onOpen: () => void;
@@ -26,19 +29,20 @@ export function FileTreeName({
 	const parent = file.path.includes('/') ? file.path.split('/').slice(0, -1).join('/') : '';
 	return (
 		<div className="file-entry" style={{ paddingLeft: depth * 16 }}>
-			{file.kind === 'dir' && !showParent ? (
-				<button
-					className="tree-disclosure"
-					tabIndex={-1}
-					aria-label={`${expanded ? t('fileTreeName.collapse') : t('fileTreeName.expand')} ${file.path === '.' ? name : file.path}`}
-					aria-expanded={expanded}
-					onClick={onToggle}
-				>
-					<ChevronRight size={12} className={expanded ? 'rotated' : ''} />
-				</button>
-			) : (
-				<span className="tree-disclosure-placeholder" />
-			)}
+			{checkbox ??
+				(file.kind === 'dir' && !showParent ? (
+					<button
+						className="tree-disclosure"
+						tabIndex={-1}
+						aria-label={`${expanded ? t('fileTreeName.collapse') : t('fileTreeName.expand')} ${file.path === '.' ? name : file.path}`}
+						aria-expanded={expanded}
+						onClick={onToggle}
+					>
+						<ChevronRight size={12} className={expanded ? 'rotated' : ''} />
+					</button>
+				) : (
+					<span className="tree-disclosure-placeholder" />
+				))}
 			<button
 				className="file-name"
 				title={file.path}
@@ -51,6 +55,7 @@ export function FileTreeName({
 				<FileIcon path={file.path} kind={file.kind} />
 				<span className="file-label truncate">
 					{name}
+					{checkbox && file.kind === 'dir' && <small>{t('filePane.includesChildren')}</small>}
 					{showParent && parent && <small>{parent}</small>}
 				</span>
 				{file.movedFrom && (

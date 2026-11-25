@@ -3002,6 +3002,9 @@ kbd {
 .file-table-header .table-head > span:first-child {
 	padding-left: 44px;
 }
+.file-table-header .table-head > span:has([data-select-all-files]) {
+	padding-left: 0;
+}
 .file-table-header .table-head > span:nth-child(3) {
 	text-align: right;
 }

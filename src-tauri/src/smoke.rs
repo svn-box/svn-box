@@ -41,12 +41,46 @@ pub fn smoke_report(
 
 #[tauri::command]
 pub fn smoke_menu(app: AppHandle, action: String) -> std::result::Result<(), String> {
-    if std::env::var_os("SVNBOX_SMOKE_OUTPUT").is_none()
-        || !["settings", "app-update"].contains(&action.as_str())
-    {
+    if std::env::var_os("SVNBOX_SMOKE_OUTPUT").is_none() {
         return Err("Invalid smoke menu action".into());
     }
-    crate::menu::handle(&app, &action);
+    match action.as_str() {
+        "settings" | "app-update" => {
+            crate::menu::handle(&app, &action);
+            Ok(())
+        }
+        "select-all" | "cmd-a" => smoke_select_all(action == "cmd-a"),
+        _ => Err("Invalid smoke menu action".into()),
+    }
+}
+
+fn smoke_select_all(shortcut: bool) -> std::result::Result<(), String> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType};
+    use objc2_foundation::{NSPoint, NSString};
+    let mtm = MainThreadMarker::new().ok_or("Menu requires the main thread")?;
+    let app = NSApplication::sharedApplication(mtm);
+    let menu = app.mainMenu().ok_or("Missing main menu")?;
+    if shortcut {
+        let key = NSString::from_str("a");
+        let event = NSEvent::keyEventWithType_location_modifierFlags_timestamp_windowNumber_context_characters_charactersIgnoringModifiers_isARepeat_keyCode(
+            NSEventType::KeyDown, NSPoint::ZERO, NSEventModifierFlags::Command, 0.0,
+            app.mainWindow().ok_or("Missing main window")?.windowNumber(), None, &key, &key, false, 0,
+        ).ok_or("Missing key event")?;
+        if !menu.performKeyEquivalent(&event) {
+            return Err("Command-A did not match a menu item".into());
+        }
+    } else {
+        let edit = menu
+            .itemWithTitle(&NSString::from_str(&tr("desktop.edit")))
+            .and_then(|item| item.submenu())
+            .ok_or("Missing Edit menu")?;
+        let index = edit.indexOfItemWithTitle(&NSString::from_str(&tr("desktop.selectAll")));
+        if index < 0 {
+            return Err("Missing Select All menu item".into());
+        }
+        edit.performActionForItemAtIndex(index);
+    }
     Ok(())
 }
 

@@ -78,7 +78,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             &PredefinedMenuItem::cut(app, Some(&tr("desktop.cut")))?,
             &PredefinedMenuItem::copy(app, Some(&tr("common.copy")))?,
             &PredefinedMenuItem::paste(app, Some(&tr("desktop.paste")))?,
-            &PredefinedMenuItem::select_all(app, Some(&tr("desktop.selectAll")))?,
+            &item(app, "select-all", "desktop.selectAll", Some("CmdOrCtrl+A"))?,
         ],
     )?;
     let view = Submenu::with_items(
@@ -106,6 +106,9 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
 pub fn handle(app: &AppHandle, id: &str) {
     match id {
         "quit" | "close" => commands::request_close(app),
+        "select-all" => {
+            let _ = app.emit_to("main", "svnbox:navigate", id);
+        }
         "fullscreen" => {
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(value) = window.is_fullscreen() {

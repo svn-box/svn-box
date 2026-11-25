@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { useCallback, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
-import { CheckCircle2, ChevronDown, LoaderCircle, MoreHorizontal, Search } from 'lucide-react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CheckCircle2, ChevronDown, LoaderCircle, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { isChanged, isConflict, type FileStatus, type Filter, type WorkingCopy, type WorkspaceSession } from '../../../shared/types';
+import { MAX_PATHS } from '../../../shared/validation';
 import { useStatus } from '../queries/hooks';
 import { useSessionSlice, workspaceStore } from '../state/workspace';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from './ui/dropdown-menu';
@@ -18,12 +19,16 @@ export function FilePane({
 	setContext,
 	compareFile,
 	onTogglePreview,
+	onAdd,
+	busy,
 }: {
 	wc: WorkingCopy;
 	fileActions: (path: string) => ReactNode;
 	setContext: (context: FileContext) => void;
 	compareFile: (path: string) => void;
 	onTogglePreview: () => void;
+	onAdd: (paths: string[]) => void;
+	busy: boolean;
 }) {
 	const { t } = useTranslation();
 	const session = useSessionSlice(wc.id, ['currentPath', 'expanded', 'view', 'filter', 'fileSearch']);
@@ -83,6 +88,36 @@ export function FilePane({
 			return true;
 		});
 	}, [snapshot, session.view, session.filter, session.expanded, fileSearch]);
+	const adding = session.filter === 'unversioned';
+	const addable = useMemo(
+		() => new Set(adding ? visibleFiles.filter((file) => file.item === 'unversioned' && !file.external).map((file) => file.path) : []),
+		[adding, visibleFiles],
+	);
+	const [checked, setChecked] = useState<Set<string>>(() => new Set());
+	useLayoutEffect(() => {
+		setChecked(new Set());
+	}, [fileSearch, session.filter, session.view]);
+	useLayoutEffect(() => {
+		setChecked((previous) => {
+			const remaining = new Set([...previous].filter((path) => addable.has(path)));
+			return remaining.size === previous.size ? previous : remaining;
+		});
+	}, [addable]);
+	const allChecked = addable.size > 0 && checked.size === addable.size;
+	const overLimit = checked.size > MAX_PATHS;
+
+	function togglePath(path: string, include: boolean) {
+		setChecked((previous) => {
+			const next = new Set(previous);
+			if (include) {
+				next.add(path);
+			} else {
+				next.delete(path);
+			}
+			return next;
+		});
+	}
+
 	const changedDirectories = useMemo(() => {
 		const paths = new Set<string>();
 		for (const file of snapshot?.files ?? []) {
@@ -172,6 +207,7 @@ export function FilePane({
 		<div
 			ref={pane}
 			className="file-pane"
+			data-unversioned-list={adding ? '' : undefined}
 			tabIndex={0}
 			aria-label={t('filePane.fileAndHistoryListArrowKeysToBrowse')}
 			onKeyDown={navigateList}
@@ -222,6 +258,23 @@ export function FilePane({
 			<div className="file-table-header" ref={fileHeader}>
 				<div className="table-head file-columns" style={{ minWidth: fileListMinWidth }}>
 					<span>
+						{adding && (
+							<input
+								type="checkbox"
+								data-select-all-files
+								aria-label={t('filePane.selectAllResults')}
+								title={t('filePane.selectAllResults')}
+								checked={allChecked}
+								disabled={!addable.size}
+								ref={(input) => {
+									if (input) {
+										input.indeterminate = checked.size > 0 && !allChecked;
+									}
+								}}
+								onPointerDown={(event) => event.currentTarget.focus()}
+								onChange={(event) => setChecked(event.target.checked ? new Set(addable) : new Set())}
+							/>
+						)}
 						{t('filePane.name')}
 						<ChevronDown size={10} />
 					</span>
@@ -265,6 +318,18 @@ export function FilePane({
 								depth={depthOf(file)}
 								expanded={session.expanded.includes(file.path)}
 								showParent={!treeView}
+								checkbox={
+									adding ? (
+										<input
+											type="checkbox"
+											aria-label={t('filePane.selectForAdd', { path: file.path })}
+											disabled={!addable.has(file.path)}
+											checked={checked.has(file.path)}
+											onPointerDown={(event) => event.currentTarget.focus()}
+											onChange={(event) => togglePath(file.path, event.target.checked)}
+										/>
+									) : undefined
+								}
 								onSelect={() => patchSession({ currentPath: file.path })}
 								onToggle={() =>
 									patchSession({
@@ -311,12 +376,23 @@ export function FilePane({
 			)}
 			<div className="list-footer">
 				<span>
-					{t('filePane.paths', { count: visibleFiles.length })}
-					<span className="separator-dot">·</span>
-					{t('filePane.changes', { count: changed.length })}
-					{snapshot?.files.some((file) => file.external) && t('filePane.externalsManagedSeparately')}
+					{overLimit ? t('svn.theOperationExceedsPathsSelectASmallerScope') : t('filePane.paths', { count: visibleFiles.length })}
+					{!adding && (
+						<>
+							<span className="separator-dot">·</span>
+							{t('filePane.changes', { count: changed.length })}
+							{snapshot?.files.some((file) => file.external) && t('filePane.externalsManagedSeparately')}
+						</>
+					)}
 				</span>
-				<span>{t('filePane.selectAFileForDetailsChooseTheScope')}</span>
+				{adding ? (
+					<Button size="sm" disabled={busy || !checked.size || overLimit} onClick={() => onAdd([...checked])}>
+						<Plus />
+						{t('filePane.addSelected', { count: checked.size })}
+					</Button>
+				) : (
+					<span>{t('filePane.selectAFileForDetailsChooseTheScope')}</span>
+				)}
 			</div>
 		</div>
 	);

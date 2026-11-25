@@ -1,4 +1,5 @@
 import { FileVersionsDialog } from './components/FileVersionsDialog';
+import { selectAllInFocus } from './lib/select-all';
 import { operationAction } from '../../shared/operation-log';
 import { useTranslation } from 'react-i18next';
 import { getTheme } from '../../shared/themes';
@@ -325,7 +326,9 @@ export function App() {
 	}
 
 	navigateRef.current = (action) => {
-		if (action === 'settings') {
+		if (action === 'select-all') {
+			selectAllInFocus();
+		} else if (action === 'settings') {
 			setModal('settings');
 		} else if (action === 'app-update') {
 			void updates.check();
@@ -347,6 +350,10 @@ export function App() {
 	};
 	useEffect(() => {
 		const key = (event: KeyboardEvent) => {
+			if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'a' && !event.defaultPrevented) {
+				event.preventDefault();
+				selectAllInFocus();
+			}
 			if (event.key === 'Escape') {
 				setContext(undefined);
 			}
@@ -629,6 +636,7 @@ export function App() {
 							previewHidden={previewHidden}
 							setPreviewHidden={setPreviewHidden}
 							fileActions={fileActions}
+							busy={reviewing || busyWrite}
 							setContext={setContext}
 							compareFile={(path, revision) => void compareFile(path, revision)}
 							refresh={refresh}

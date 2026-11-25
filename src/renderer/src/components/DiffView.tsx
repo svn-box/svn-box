@@ -180,7 +180,7 @@ export function DiffView({
 							</Button>
 						</div>
 					</div>
-					<div ref={viewport} className="diff-scroll">
+					<div ref={viewport} className="diff-scroll" tabIndex={0}>
 						<div style={{ height: virtual.getTotalSize(), minWidth: '100%', position: 'relative' }}>
 							{virtual.getVirtualItems().map((item) => {
 								const row = rows[item.index];

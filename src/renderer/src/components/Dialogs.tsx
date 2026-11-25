@@ -538,9 +538,11 @@ export function ReviewDialog({ review, onClose, onExecute }: { review: Review; o
 			<div className="review-summary">
 				<span>{labels[review.action]}</span>
 				<strong>
-					{t('dialogs.explicitTargets', {
-						count: review.paths.length,
-					})}
+					{review.action === 'add'
+						? t('dialogs.addScope', { selected: review.requested.length, total: review.paths.length })
+						: t('dialogs.explicitTargets', {
+								count: review.paths.length,
+							})}
 				</strong>
 			</div>
 			{review.message && <pre className="review-message">{review.message}</pre>}

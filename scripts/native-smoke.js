@@ -23,6 +23,55 @@
 		return [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === label || button.getAttribute('aria-label') === label);
 	}
 
+	async function checkBatchAdd(wcId) {
+		document.querySelector('.status-filter').click();
+		const option = () => [...document.querySelectorAll('[role="option"]')].find((item) => item.textContent.trim() === '未受控');
+		await waitFor(option);
+		option().click();
+		await waitFor(() => document.querySelector('[data-select-all-files]') && !document.querySelector('[role="option"]'));
+		const all = document.querySelector('[data-select-all-files]');
+		const rows = () => [...document.querySelectorAll('.file-row input[type="checkbox"]')];
+		assert(rows().length > 0 && rows().length < 80, 'The batch includes paths outside the virtual viewport');
+		rows()[0].click();
+		await waitFor(() => all.indeterminate);
+		document.querySelector('.file-name').click();
+		await invoke('smoke_menu', { action: 'cmd-a' });
+		await waitFor(() => all.checked && button('加入版本控制（81 项）…'));
+		assert(window.getSelection().isCollapsed, 'Native Command-A selects all matching paths without highlighting the page');
+		button('加入版本控制（81 项）…').click();
+		await waitFor(() => document.querySelector('.review-summary')?.textContent.includes('已选 81 项，共涉及 82 个路径'));
+		button('返回检查').click();
+		await waitFor(() => !document.querySelector('[role="dialog"]'));
+
+		const search = document.querySelector('.inline-search input');
+		search.focus();
+		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(search, 'batch-7');
+		search.dispatchEvent(new Event('input', { bubbles: true }));
+		await waitFor(() => button('加入版本控制（0 项）…')?.disabled && rows().length === 11);
+		search.setSelectionRange(2, 2);
+		await invoke('smoke_menu', { action: 'cmd-a' });
+		await waitFor(() => search.selectionStart === 0 && search.selectionEnd === search.value.length);
+		assert(!all.checked, 'Command-A in search selects the query and leaves file checkboxes clear');
+		rows()[0].focus();
+		await invoke('smoke_menu', { action: 'select-all' });
+		await waitFor(() => all.checked && button('加入版本控制（11 项）…'));
+		const repeat = new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true, cancelable: true });
+		assert(!document.activeElement.dispatchEvent(repeat) && all.checked, 'Repeating Command-A from a row keeps the full selection');
+		const excluded = rows()[0].closest('.file-row').dataset.path;
+		rows()[0].click();
+		await waitFor(() => all.indeterminate && button('加入版本控制（10 项）…'));
+		button('加入版本控制（10 项）…').click();
+		await waitFor(() => document.querySelector('.review-summary')?.textContent.includes('已选 10 项，共涉及 10 个路径'));
+		button('加入版本控制').click();
+		await waitFor(() => !document.querySelector('[role="dialog"]') && rows().length === 1 && button('加入版本控制（0 项）…')?.disabled);
+		const { files } = await window.svnbox.call('status', { wcId });
+		assert(
+			files.filter((file) => file.item === 'added').length === 10 &&
+				files.every((file) => file.item !== 'added' || (file.path.startsWith('batch-7') && file.path !== excluded)),
+			'One reviewed SVN add includes only the checked search results',
+		);
+	}
+
 	try {
 		await waitFor(() => window.svnbox && document.querySelector('.app-shell') && document.body.innerText.includes('Native SVNBox'));
 		assert(!document.querySelector('.fatal'), 'React workspace renders in the native WebKit view');
@@ -42,10 +91,19 @@
 		assert(document.querySelector('[role="dialog"] .commit-file-list') !== null, 'Commit dialog preserves the compact file selection table');
 		assert(document.querySelector('[role="dialog"] .diff-view') === null, 'Commit dialog leaves differences in the workspace');
 		await invoke('smoke_snapshot', { name: 'commit' });
+		const draft = document.querySelector('[role="dialog"] textarea');
+		draft.focus();
+		Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(draft, 'Local draft');
+		draft.dispatchEvent(new Event('input', { bubbles: true }));
+		draft.setSelectionRange(1, 1);
+		await invoke('smoke_menu', { action: 'select-all' });
+		await waitFor(() => draft.selectionStart === 0 && draft.selectionEnd === draft.value.length);
+		assert(draft.value === 'Local draft', 'Edit → Select All selects the commit message in place');
 		const close = button('稍后继续');
 		assert(close, 'Commit dialog offers a way to continue later');
 		close.click();
 		await waitFor(() => !document.querySelector('[role="dialog"]'));
+		await checkBatchAdd(wcId);
 		let update = await window.svnbox.call('appUpdate', { action: 'status' });
 		assert(update.phase === 'idle', 'An isolated updater fixture starts without automatic checks');
 		assert(!document.querySelector('.app-update-button'), 'The titlebar has no permanent app update button');

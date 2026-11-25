@@ -9,7 +9,8 @@ const id = z.string().min(1).max(200);
 export const requestOptionsSchema = z.object({ requestId: id.optional() }).strict();
 const path = text.refine((s) => !/[\r\n]/.test(s), { error: () => translate('validation.pathsCannotContainLineBreaks') });
 const wc = z.object({ wcId: id });
-const paths = z.array(path).max(2000);
+export const MAX_PATHS = 2000;
+const paths = z.array(path).max(MAX_PATHS);
 const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const range = z.object({ from: revision, to: z.union([revision, z.literal('WORKING')]) }).strict();
 export const schemas = {
