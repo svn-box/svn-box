@@ -21,7 +21,7 @@ The app interface supports **English and Simplified Chinese**, with instant swit
 - **Multiple working copies** — group, search, favorite, and reorder projects. Each working copy keeps its own file selection, filters, expanded folders, history context, and commit draft.
 - **Repository bookmarks** — organize remote URLs, expand folders in a compact tree with per-folder loading and cancellation, and check out selected directories into separate local working copies.
 - **Change review** — browse a compact file tree, filter SVN states, and compare text and property changes with unified or side-by-side diffs.
-- **Selective commits** — choose paths, review the actual commit scope, reuse recent messages, and recover drafts after restarting the app.
+- **Selective commits** — commit selected paths with an optional message, reuse recent messages, and recover drafts after restarting the app.
 - **History** — explore a collapsible timeline, load earlier revisions, inspect changed paths, and view differences within each commit.
 - **File recovery** — compare any two revisions or a revision with local contents, then recover an existing file with an automatic local backup.
 - **Text conflicts** — keep pre-update local contents, accept incoming contents, or use FileMerge for three-way merging. Review and apply the result explicitly.
@@ -49,9 +49,9 @@ Browse revisions by date, expand changed paths, and open a commit's diff directl
 </details>
 
 <details>
-<summary>Review a selective commit</summary>
+<summary>Select files to commit</summary>
 
-Write a commit message, reuse a recent message, and choose the paths to include before reviewing the final scope. Differences stay in the workspace.
+Choose the paths to commit. You can write a message, reuse a recent one, or leave it blank. Differences stay in the workspace.
 
 ![svnbox commit dialog with a message draft and a selectable list of changed paths and statuses](resources/screenshots/commit.png)
 
@@ -87,7 +87,7 @@ Press **⌘⇧O** to browse a remote repository and check out a directory. Enter
 
 Select a working copy in the sidebar. Browse its files, show only changed items, or filter by SVN state. Select a file to open its diff, then switch between unified and side-by-side views or open FileMerge when available.
 
-Press **⌘↵** to prepare a commit. Write a message, choose the paths to include, and review the actual scope before confirming. Checkboxes select paths for this commit; SVN has no staging area. Drafts are saved separately for each working copy.
+Press **⌘↵** to prepare a commit. Select files and click **Commit**. The message is optional. When adding or committing files, svnbox asks for confirmation only if SVN needs to include additional paths. Drafts are saved separately for each working copy.
 
 ### Refresh and update
 

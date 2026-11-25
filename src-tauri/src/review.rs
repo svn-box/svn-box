@@ -57,9 +57,6 @@ impl Backend {
         let mut paths = requested.iter().cloned().collect::<BTreeSet<_>>();
         let mut reasons = vec![];
         if action == "commit" {
-            if s(input, "message").trim().is_empty() {
-                return Err(error("validation", "svn.enterACommitMessage"));
-            }
             let tracked = files.iter().filter(|f| changed(f)).collect::<Vec<_>>();
             if let Some(path) = paths
                 .iter()

@@ -121,6 +121,33 @@ fn execute(f: &Fixture, review: Value) -> Value {
 }
 
 #[test]
+fn blank_commit_messages_create_revisions_without_crowding_recent_messages() {
+    let f = fixture();
+    for (index, message) in ["Reusable message", "", "  \t "].iter().enumerate() {
+        fs::write(f.a.join("README.md"), format!("edit {index}")).unwrap();
+        call(
+            &f,
+            "session",
+            json!({"wcId": f.first, "patch": {"draft": message, "selected": ["README.md"]}}),
+        );
+        let review = call(
+            &f,
+            "review",
+            json!({"wcId": f.first, "action": "commit", "paths": ["README.md"], "message": message}),
+        );
+        let result = execute(&f, review);
+        assert_eq!(result["state"], "success", "{result}");
+        let log = call(&f, "log", json!({"wcId": f.first, "path": "README.md"}));
+        assert_eq!(log[0]["revision"], index + 3);
+        assert_eq!(s(&log[0], "message").trim(), message.trim());
+        let state = f.backend.state();
+        assert_eq!(state["recentMessages"], json!(["Reusable message"]));
+        assert_eq!(state["sessions"][&f.first]["draft"], "");
+        assert_eq!(state["sessions"][&f.first]["selected"], json!([]));
+    }
+}
+
+#[test]
 fn selective_commit_preserves_other_edits_and_detects_stale_reviews() {
     let f = fixture();
     assert_eq!(

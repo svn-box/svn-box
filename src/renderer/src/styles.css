@@ -1930,15 +1930,6 @@ kbd {
 	color: var(--accent);
 	font-weight: 500;
 }
-.review-message {
-	padding: 10px 12px;
-	margin-top: 12px;
-	background: var(--canvas);
-	border-radius: 6px;
-	line-height: 1.7;
-	max-height: 120px;
-	overflow: auto;
-}
 .warning-box {
 	background: color-mix(in srgb, var(--warning) 9%, transparent);
 	border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);

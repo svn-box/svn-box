@@ -127,7 +127,6 @@
 		"theDestinationAlreadyExistsChooseAnotherPath": "The destination already exists. Choose another path.",
 		"selectAnOperationTarget": "Select an operation target",
 		"theScopeIncludesAnExternalManageDirectoryExternals": "The scope includes an external. Manage directory externals as separate working copies and use the SVN command line for file externals.",
-		"enterACommitMessage": "Enter a commit message",
 		"fileStatusHasChangedRefreshFirst": "File status has changed. Refresh first: {{path}}",
 		"relatedPathAddedParentDirectoryDescendantOrOther": "Related path: {{path}} (added parent, directory descendant, or other end of a move)",
 		"theCommitScopeIncludesConflictedMissingOrObstructed": "The commit scope includes conflicted, missing, or obstructed paths. Resolve them first.",
@@ -219,7 +218,7 @@
 		"compareInFilemerge": "Compare in FileMerge",
 		"showPathHistory": "Show Path History",
 		"commitThisPath": "Commit This Path…",
-		"addToVersionControl": "Add to Version Control…",
+		"addToVersionControl": "Add to Version Control",
 		"ignoreThisName": "Ignore This Name…",
 		"renameMove": "Rename / Move…",
 		"openInExternalMergeTool": "Open in External Merge Tool",
@@ -245,7 +244,6 @@
 		"browseAndCheckOut": "Browse and Check Out",
 		"independentWorkingCopies": "Independent working copies",
 		"textAndPropertyDiffs": "Text and property diffs",
-		"reviewTheCommitScope": "Review the commit scope",
 		"oAddWorkingCopy": "⌘O Add working copy",
 		"switchViews": "⌘1–3 Switch views",
 		"commit": "⌘↵ Commit",
@@ -271,7 +269,8 @@
 		"relativeDestinationPath": "Relative destination path",
 		"reviewRenameScope": "Review Rename Scope",
 		"operationsRunning_one": "{{count}} operation running",
-		"operationsRunning_other": "{{count}} operations running"
+		"operationsRunning_other": "{{count}} operations running",
+		"selectiveCommits": "Selective commits"
 	},
 	"authenticationHost": {
 		"theServerRejectedTheseCredentialsEnterYourUsername": "The server rejected these credentials. Enter your username and password again.",
@@ -299,7 +298,6 @@
 	},
 	"commitPanel": {
 		"commitTo": "Commit to {{name}}",
-		"writeACommitMessageAndSelectTheFiles": "Write a commit message and select the files for this commit.",
 		"commitMessage": "Commit Message",
 		"recentCommitMessages": "Recent Commit Messages",
 		"reuseARecentCommitMessage": "Reuse a recent commit message",
@@ -319,7 +317,7 @@
 		"blockedPathsResolveConflictsMissingFilesOrExternals": "Blocked paths: {{blocked}}. Resolve conflicts, missing files, or externals before committing.",
 		"selectedOf": "Selected {{count}} of {{count2}}",
 		"continueLater": "Continue Later",
-		"reviewCommitScope": "Review Commit Scope"
+		"optionalCommitMessage": "Commit message (optional)"
 	},
 	"detailsPanel": {
 		"commitDetails": "Commit Details",
@@ -410,20 +408,20 @@
 		"setIgnoreRule": "Set Ignore Rule",
 		"revertSelectedLocalChanges": "Discard Selected Local Changes",
 		"markAsResolved": "Mark as Resolved",
-		"commitReview": "Commit Review",
 		"confirmOperationScope": "Confirm Operation Scope",
 		"filesAndPropertiesWillBeCheckedAgainBefore": "Files and properties will be checked again before execution. If their status changed, review the scope again.",
 		"explicitTargets": "{{count}} explicit targets",
-		"addScope": "Selected: {{selected}} · Total paths: {{total}}",
 		"explicitTargets_one": "{{count}} explicit target",
 		"explicitTargets_other": "{{count}} explicit targets",
 		"entireWorkingCopyExcludingExternals": ". (entire working copy, excluding externals)",
 		"actualOperationScope": "Actual Operation Scope",
 		"selected": "Selected",
 		"related": "Related",
-		"onlyThePathsListedAboveWillBeCommitted": "Only the paths listed above will be committed. Related parents, directory contents, and both ends of moves are listed for your review.",
 		"iReviewedTheActualScopeAndUnderstandThese": "I reviewed the actual scope and understand these effects",
-		"backToReview": "Back to Review"
+		"backToReview": "Back to Review",
+		"selectedScope": "Selected: {{selected}} · Total paths: {{total}}",
+		"commitAdditionalPaths": "This commit also includes these paths",
+		"addAdditionalPaths": "These paths will also be added"
 	},
 	"diffView": {
 		"diffPreview": "Diff Preview",
@@ -464,7 +462,7 @@
 		"workingCopyFiles": "Working copy files",
 		"selectAllResults": "Select all matching unversioned items",
 		"selectForAdd": "Select {{path}} to add to version control",
-		"addSelected": "Add to Version Control ({{count}})…",
+		"addSelected": "Add to Version Control ({{count}})",
 		"includesChildren": "Includes children, even ignored items",
 		"containsChanges": "Contains Changes",
 		"noLocalChanges": "No Local Changes",

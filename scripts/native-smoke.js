@@ -36,10 +36,14 @@
 		await waitFor(() => all.indeterminate);
 		document.querySelector('.file-name').click();
 		await invoke('smoke_menu', { action: 'cmd-a' });
-		await waitFor(() => all.checked && button('加入版本控制（81 项）…'));
+		await waitFor(() => all.checked && button('加入版本控制（81 项）'));
 		assert(window.getSelection().isCollapsed, 'Native Command-A selects all matching paths without highlighting the page');
-		button('加入版本控制（81 项）…').click();
-		await waitFor(() => document.querySelector('.review-summary')?.textContent.includes('已选 81 项，共涉及 82 个路径'));
+		button('加入版本控制（81 项）').click();
+		await waitFor(() => document.querySelector('.dialog-description')?.textContent.includes('已选 81 项，共涉及 82 个路径'));
+		assert(
+			document.querySelectorAll('.review-path').length === 1 && document.querySelector('.review-path code').textContent === 'folder/child.txt',
+			'An expanded add lists only the unselected child',
+		);
 		button('返回检查').click();
 		await waitFor(() => !document.querySelector('[role="dialog"]'));
 
@@ -47,28 +51,26 @@
 		search.focus();
 		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(search, 'batch-7');
 		search.dispatchEvent(new Event('input', { bubbles: true }));
-		await waitFor(() => button('加入版本控制（0 项）…')?.disabled && rows().length === 11);
+		await waitFor(() => button('加入版本控制（0 项）')?.disabled && rows().length === 11);
 		search.setSelectionRange(2, 2);
 		await invoke('smoke_menu', { action: 'cmd-a' });
 		await waitFor(() => search.selectionStart === 0 && search.selectionEnd === search.value.length);
 		assert(!all.checked, 'Command-A in search selects the query and leaves file checkboxes clear');
 		rows()[0].focus();
 		await invoke('smoke_menu', { action: 'select-all' });
-		await waitFor(() => all.checked && button('加入版本控制（11 项）…'));
+		await waitFor(() => all.checked && button('加入版本控制（11 项）'));
 		const repeat = new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true, cancelable: true });
 		assert(!document.activeElement.dispatchEvent(repeat) && all.checked, 'Repeating Command-A from a row keeps the full selection');
 		const excluded = rows()[0].closest('.file-row').dataset.path;
 		rows()[0].click();
-		await waitFor(() => all.indeterminate && button('加入版本控制（10 项）…'));
-		button('加入版本控制（10 项）…').click();
-		await waitFor(() => document.querySelector('.review-summary')?.textContent.includes('已选 10 项，共涉及 10 个路径'));
-		button('加入版本控制').click();
-		await waitFor(() => !document.querySelector('[role="dialog"]') && rows().length === 1 && button('加入版本控制（0 项）…')?.disabled);
+		await waitFor(() => all.indeterminate && button('加入版本控制（10 项）'));
+		button('加入版本控制（10 项）').click();
+		await waitFor(() => !document.querySelector('[role="dialog"]') && rows().length === 1 && button('加入版本控制（0 项）')?.disabled);
 		const { files } = await window.svnbox.call('status', { wcId });
 		assert(
 			files.filter((file) => file.item === 'added').length === 10 &&
 				files.every((file) => file.item !== 'added' || (file.path.startsWith('batch-7') && file.path !== excluded)),
-			'One reviewed SVN add includes only the checked search results',
+			'One click adds only the checked search results',
 		);
 	}
 
@@ -85,8 +87,9 @@
 		const diff = await window.svnbox.call('diff', { wcId, path: 'README.md' });
 		assert(diff.text.includes('+native edit'), 'Rust returns a real SVN diff');
 		await invoke('smoke_snapshot', { name: 'workspace' });
-		await waitFor(() => [...document.querySelectorAll('.project-actions button')].some((button) => button.textContent.includes('提交') && !button.disabled));
-		[...document.querySelectorAll('.project-actions button')].find((button) => button.textContent.includes('提交')).click();
+		const openCommit = () => [...document.querySelectorAll('.project-actions button')].find((button) => button.textContent.includes('提交') && !button.disabled);
+		await waitFor(openCommit);
+		openCommit().click();
 		await waitFor(() => document.querySelector('[role="dialog"] textarea'));
 		assert(document.querySelector('[role="dialog"] .commit-file-list') !== null, 'Commit dialog preserves the compact file selection table');
 		assert(document.querySelector('[role="dialog"] .diff-view') === null, 'Commit dialog leaves differences in the workspace');
@@ -103,6 +106,30 @@
 		assert(close, 'Commit dialog offers a way to continue later');
 		close.click();
 		await waitFor(() => !document.querySelector('[role="dialog"]'));
+		openCommit().click();
+		await waitFor(() => document.querySelector('.commit-modal textarea')?.value === 'Local draft');
+		const message = document.querySelector('.commit-modal textarea');
+		Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(message, '');
+		message.dispatchEvent(new Event('input', { bubbles: true }));
+		for (const row of document.querySelectorAll('.commit-file')) {
+			const checkbox = row.querySelector('input');
+			if (checkbox.checked !== (row.querySelector('.commit-file-path').title === 'README.md')) {
+				checkbox.click();
+			}
+		}
+		await waitFor(() => button('提交') && !button('提交').disabled);
+		let commit;
+		const offCommit = window.svnbox.onOperation((op) => {
+			commit = op;
+		});
+		button('提交').click();
+		await waitFor(() => commit?.state === 'success' && !document.querySelector('[role="dialog"]'));
+		offCommit();
+		const [entry] = await window.svnbox.call('log', { wcId, path: 'README.md' });
+		assert(
+			entry.message === '' && entry.paths.length === 1 && entry.paths[0].path === '/trunk/README.md',
+			'A single click commits the selected file with an empty SVN log message',
+		);
 		await checkBatchAdd(wcId);
 		let update = await window.svnbox.call('appUpdate', { action: 'status' });
 		assert(update.phase === 'idle', 'An isolated updater fixture starts without automatic checks');
@@ -245,7 +272,8 @@
 		assert(true, 'Native language events update the renderer without restarting');
 		const events = new Map();
 		const unsubscribe = window.svnbox.onOperation((operation) => events.set(operation.id, operation));
-		const review = await window.svnbox.call('review', { wcId, action: 'commit', paths: ['README.md'], message: 'Native selective commit' });
+		const added = (await window.svnbox.call('status', { wcId })).files.find((file) => file.item === 'added');
+		const review = await window.svnbox.call('review', { wcId, action: 'commit', paths: [added.path], message: 'Native selective commit' });
 		const operation = await window.svnbox.call('execute', { reviewId: review.id });
 		await waitFor(() => events.has(operation.id) && !['waiting', 'running'].includes(events.get(operation.id).state));
 		assert(events.get(operation.id).state === 'success', 'Native operation events report a completed SVN commit');

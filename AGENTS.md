@@ -23,4 +23,5 @@
 
 # Releases
 
+- Publish a new version after completing and verifying app changes unless the user explicitly asks to skip the release.
 - Publish tagged releases from the Apple Silicon signing Mac. Follow [Local macOS releases](README.md#local-macos-releases) to build, resume notarization, or upload. Report the verified GitHub Release URL.

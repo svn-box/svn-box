@@ -225,7 +225,8 @@ impl Backend {
             self.execute_content(&wc, &review, &snapshot, ctx)?;
         } else if action == "commit" {
             let message_file = self.0.root.join(format!("message-{}.txt", s(value, "id")));
-            atomic_write(&message_file, s(value, "message").as_bytes(), 0o600)?;
+            let message = s(value, "message");
+            atomic_write(&message_file, message.as_bytes(), 0o600)?;
             let mut args = vec![
                 "commit".into(),
                 "--depth".into(),
@@ -239,14 +240,16 @@ impl Backend {
             let _ = fs::remove_file(message_file);
             result?;
             self.change(|state| {
-                let mut messages = vec![json!(s(value, "message"))];
-                messages.extend(
-                    items(&state["recentMessages"])
-                        .into_iter()
-                        .filter(|m| m.as_str() != Some(s(value, "message")))
-                        .take(19),
-                );
-                state["recentMessages"] = json!(messages);
+                if !message.trim().is_empty() {
+                    let mut messages = vec![json!(message)];
+                    messages.extend(
+                        items(&state["recentMessages"])
+                            .into_iter()
+                            .filter(|m| m.as_str() != Some(message))
+                            .take(19),
+                    );
+                    state["recentMessages"] = json!(messages);
+                }
                 let session = &mut state["sessions"][s(&wc, "id")];
                 if session["draft"] == value["message"] {
                     session["draft"] = json!("");

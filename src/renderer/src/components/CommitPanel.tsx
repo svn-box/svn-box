@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useId } from 'react';
-import { ChevronDown, Clock3, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Clock3, LoaderCircle, ShieldCheck, Upload } from 'lucide-react';
 import type { FileStatus, WorkingCopy } from '../../../shared/types';
 import { workspaceStore, useWorkspaceSession, useWorkspaceStore } from '../state/workspace';
 import { Modal } from './Dialogs';
@@ -16,7 +16,7 @@ export function CommitPanel({
 	recentMessages,
 	blocked,
 	busy,
-	onReview,
+	onCommit,
 	onClose,
 }: {
 	copy: WorkingCopy;
@@ -24,7 +24,7 @@ export function CommitPanel({
 	recentMessages: string[];
 	blocked: number;
 	busy: boolean;
-	onReview: (paths: string[]) => void;
+	onCommit: (paths: string[]) => void;
 	onClose: () => void;
 }) {
 	const { t } = useTranslation();
@@ -45,7 +45,7 @@ export function CommitPanel({
 			title={t('commitPanel.commitTo', {
 				name: copy.name,
 			})}
-			description={t('commitPanel.writeACommitMessageAndSelectTheFiles')}
+			description={t('commitPanel.selectFilesToCommit')}
 			wide
 			className="commit-modal"
 			onClose={onClose}
@@ -53,7 +53,7 @@ export function CommitPanel({
 			<div className="commit-layout">
 				<div className="commit-editor">
 					<div className="commit-editor-heading">
-						<label htmlFor={messageId}>{t('commitPanel.commitMessage')}</label>
+						<label htmlFor={messageId}>{t('commitPanel.optionalCommitMessage')}</label>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
@@ -164,9 +164,9 @@ export function CommitPanel({
 				<Button variant="outline" onClick={onClose}>
 					{t('commitPanel.continueLater')}
 				</Button>
-				<Button disabled={!session.draft.trim() || !selected.length || busy} onClick={() => onReview(selected.map((file) => file.path))}>
-					{busy ? <LoaderCircle className="spin" /> : <ShieldCheck />}
-					{t('commitPanel.reviewCommitScope')}
+				<Button disabled={!selected.length || busy} onClick={() => onCommit(selected.map((file) => file.path))}>
+					{busy ? <LoaderCircle className="spin" /> : <Upload />}
+					{t('commitPanel.commit')}
 				</Button>
 			</div>
 		</Modal>

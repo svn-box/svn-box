@@ -509,6 +509,9 @@ export function ReviewDialog({ review, onClose, onExecute }: { review: Review; o
 	const { t } = useTranslation();
 	const [busy, setBusy] = useState(false);
 	const [checked, setChecked] = useState(false);
+	const selected = new Set(review.requested);
+	const additional = review.action === 'add' || review.action === 'commit' ? review.paths.filter((path) => !selected.has(path)) : [];
+	const paths = additional.length ? additional : review.paths;
 	const dangerous = ['revert', 'delete', 'resolve', 'recover', 'restore-backup', 'resolve-local', 'resolve-incoming', 'apply-merge'].includes(review.action);
 	const labels: Record<Review['action'], string> = {
 		commit: t('dialogs.confirmCommit'),
@@ -529,25 +532,22 @@ export function ReviewDialog({ review, onClose, onExecute }: { review: Review; o
 	};
 	return (
 		<Modal
-			title={review.action === 'commit' ? t('dialogs.commitReview') : t('dialogs.confirmOperationScope')}
-			description={t('dialogs.filesAndPropertiesWillBeCheckedAgainBefore')}
+			title={additional.length ? t(review.action === 'commit' ? 'dialogs.commitAdditionalPaths' : 'dialogs.addAdditionalPaths') : t('dialogs.confirmOperationScope')}
+			description={
+				additional.length ? t('dialogs.selectedScope', { selected: selected.size, total: review.paths.length }) : t('dialogs.filesAndPropertiesWillBeCheckedAgainBefore')
+			}
 			className={review.sourceFingerprint ? 'content-review-dialog' : undefined}
 			wide
 			onClose={onClose}
 		>
-			<div className="review-summary">
-				<span>{labels[review.action]}</span>
-				<strong>
-					{review.action === 'add'
-						? t('dialogs.addScope', { selected: review.requested.length, total: review.paths.length })
-						: t('dialogs.explicitTargets', {
-								count: review.paths.length,
-							})}
-				</strong>
-			</div>
-			{review.message && <pre className="review-message">{review.message}</pre>}
+			{!additional.length && (
+				<div className="review-summary">
+					<span>{labels[review.action]}</span>
+					<strong>{t('dialogs.explicitTargets', { count: review.paths.length })}</strong>
+				</div>
+			)}
 			{review.warning && <div className="warning-box">{review.warning}</div>}
-			{review.reasons.length > 0 && (
+			{!additional.length && review.reasons.length > 0 && (
 				<div className="scope-notice">
 					{review.reasons.map((reason) => (
 						<div key={reason}>{reason}</div>
@@ -556,12 +556,12 @@ export function ReviewDialog({ review, onClose, onExecute }: { review: Review; o
 			)}
 			<div className="review-paths">
 				<VirtualList
-					items={review.paths.length ? review.paths : [t('dialogs.entireWorkingCopyExcludingExternals')]}
+					items={paths.length ? paths : [t('dialogs.entireWorkingCopyExcludingExternals')]}
 					label={t('dialogs.actualOperationScope')}
 					height={30}
 					render={(path) => (
 						<div className="review-path">
-							<span className="path-status">{review.requested.includes(path) ? t('dialogs.selected') : t('dialogs.related')}</span>
+							<span className="path-status">{selected.has(path) ? t('dialogs.selected') : t('dialogs.related')}</span>
 							<code>{path}</code>
 						</div>
 					)}
@@ -580,7 +580,6 @@ export function ReviewDialog({ review, onClose, onExecute }: { review: Review; o
 					/>
 				</div>
 			)}
-			{review.action === 'commit' && <p className="hint">{t('dialogs.onlyThePathsListedAboveWillBeCommitted')}</p>}
 			{dangerous && (
 				<label className="confirm-check">
 					<input type="checkbox" checked={checked} onChange={(event) => setChecked(event.target.checked)} />

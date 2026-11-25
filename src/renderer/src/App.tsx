@@ -75,6 +75,7 @@ export function App() {
 	const [review, setReview] = useState<Review>();
 	const [fileVersions, setFileVersions] = useState<{ wcId: string; path: string; revision?: number }>();
 	const [reviewing, setReviewing] = useState(false);
+	const preparingReview = useRef(false);
 	const [bootError, setBootError] = useState('');
 	const [activeRepositoryId, setActiveRepositoryId] = useState<string>();
 	const [remoteUrl, setRemoteUrl] = useState<string>();
@@ -215,10 +216,12 @@ export function App() {
 	}
 
 	async function requestReview(action: Action, paths = activeId ? (workspaceStore.getState().sessions[activeId]?.selected ?? []) : [], destination?: string) {
-		if (!activeId) {
+		if (!activeId || preparingReview.current) {
 			return;
 		}
+		preparingReview.current = true;
 		setReviewing(true);
+		const message = action === 'commit' ? (workspaceStore.getState().sessions[activeId]?.draft ?? '') : undefined;
 		try {
 			await workspaceStore.getState().flushSessions(activeId);
 			const next = await api.call('review', {
@@ -226,9 +229,14 @@ export function App() {
 				action,
 				paths,
 				destination,
-				message: action === 'commit' ? workspaceStore.getState().sessions[activeId]?.draft : undefined,
+				message,
 			});
-			setReview(next);
+			const selected = new Set(paths);
+			if ((action === 'add' || action === 'commit') && !next.warning && next.paths.length === selected.size && next.paths.every((path) => selected.has(path))) {
+				acceptOperation(await api.call('execute', { reviewId: next.id }));
+			} else {
+				setReview(next);
+			}
 			if (action === 'commit') {
 				setModal(null);
 			}
@@ -236,6 +244,7 @@ export function App() {
 		} catch (error) {
 			showError(error);
 		} finally {
+			preparingReview.current = false;
 			setReviewing(false);
 		}
 	}
@@ -245,7 +254,7 @@ export function App() {
 			return;
 		}
 		try {
-			await api.call('execute', { reviewId: review.id });
+			acceptOperation(await api.call('execute', { reviewId: review.id }));
 			setReview(undefined);
 			setModal(null);
 		} catch (error) {
@@ -409,7 +418,7 @@ export function App() {
 					</DropdownMenuItem>
 				),
 				file?.item === 'unversioned' && (
-					<DropdownMenuItem key="add" icon={<Plus />} onSelect={() => void requestReview('add', [path])}>
+					<DropdownMenuItem key="add" icon={<Plus />} disabled={busyWrite || reviewing} onSelect={() => void requestReview('add', [path])}>
 						{t('workspace.addToVersionControl')}
 					</DropdownMenuItem>
 				),
@@ -688,7 +697,7 @@ export function App() {
 								</span>
 								<span>
 									<ShieldCheck />
-									{t('workspace.reviewTheCommitScope')}
+									{t('workspace.selectiveCommits')}
 								</span>
 							</div>
 							<div className="welcome-shortcut">
@@ -765,7 +774,7 @@ export function App() {
 					recentMessages={state.recentMessages}
 					blocked={changed.length - commitFiles.length}
 					busy={reviewing || busyWrite}
-					onReview={(paths) => void requestReview('commit', paths)}
+					onCommit={(paths) => void requestReview('commit', paths)}
 					onClose={() => setModal(null)}
 				/>
 			)}
